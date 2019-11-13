@@ -1,7 +1,9 @@
+# set wd to wherever the camera trap images live
 setwd("/Volumes/Seagate Blue")
+
 library(camtrapR)
 
-
+# old file - uses previous file names, now lives in archives
 timeShiftTable <- read.csv("Time_shift_table.csv", header=T)
 
 timeshift_run <- timeShiftImages(inDir                = "To change",
@@ -9,7 +11,7 @@ timeshift_run <- timeShiftImages(inDir                = "To change",
                                  stationCol           = "Station",
                                  hasCameraFolders     = FALSE,
                                  timeShiftColumn      = "timeshift",
-                                 timeShiftSignColumn  = "sign",
+                                 timeShiftSignColumn  = "sign"
 )
 
 

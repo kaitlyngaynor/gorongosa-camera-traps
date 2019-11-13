@@ -1,3 +1,6 @@
+# script written for African Journal of Ecology elephant paper
+# assigns time of day and season to each record, based on date and time
+
 library(tidyverse)
 library(magrittr)
 library(lubridate)
@@ -55,6 +58,7 @@ recordtable2 <- recordtable2 %>% mutate(Season = ifelse(Month < 4, 'Wet',
                                                         ifelse(Month > 10, 'Wet',
                                                             ifelse(Month >= 4 & Month <= 10, 'Dry', NA))))
 
+# Uses mutate function rather than a for loop, hmm! Could be worth bringing into future code
 
 ## export csv of all records
 write.csv(recordtable2, "Data/Raw Data/Record_table_all_1hr_timeperiods.csv")

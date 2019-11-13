@@ -7,6 +7,8 @@
 ##
 ###################################################################################################
 
+# note: this is all outdated now; the outputs of this have since been cleaned and reconstructed in other ways, see other scripts
+
 ##  A. Creating Detection Record .csv with camTrapR
 
 library(camtrapR)  ## load required package
@@ -31,12 +33,12 @@ database <- recordTable(inDir = "Complete",  ## folder in working directory with
                         writecsv = FALSE,          ## exports csv to the folder with the camera folders in it
                         removeDuplicateRecords = TRUE)    ## removes duplicate records
 
-write.csv(database, file="Record_table_season2_1hr.csv")
+write.csv(database, file="Record_table_season2.csv")
 
 ## now you should have a .csv with all of the cameras, date, time, species!
 
 ## read in a csv that is already written
-database <- read.csv("Data/Raw Data/Record_table_all_1hr.csv", header=T)
+database <- read.csv("Data/Raw Data/Record_table_all.csv", header=T)
 
 
 ###################################################################################################
