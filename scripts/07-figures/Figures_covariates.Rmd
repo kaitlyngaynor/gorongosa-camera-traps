@@ -1,0 +1,358 @@
+---
+title: "Gorongosa_occupancy_results_exploration"
+author: "Kaitlyn Gaynor"
+date: "10/25/2018"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+(Doc formerly called Figures_covariates)
+
+Exploring the output of the occupancy models, graphically. Start by setting the working directory, installing libraries, and importing data files.
+```{r setup, include=FALSE}
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+library(ggplot2)
+library(plyr)
+
+Spp <- read.csv("Data/2018spp.csv") # read in species traits
+covariates <- read.csv("Results/Model2/Wet3mo/species.csv") # change to whatever files are of interest
+```
+
+Join the model output and the species trait information.
+```{r etc}
+covariates$SppCode <- covariates$Species
+covariates2 <- join(covariates, Spp, by = "SppCode")
+
+covariates2 <- covariates2[order(covariates2$Weight),] 
+
+## I'm trying to reorder by species body mass, but this doesn't actually do anything for order of plotting, though... hmm
+covariates2 <- covariates2[order(covariates2$Weight),] # sorted by body weight
+```
+
+Plot all covariates for all species, with 95% confidence intervals.
+```{r plot all}
+ggplot(covariates2, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  facet_wrap(~ Factor)
+```
+
+Let's just look at Artiodactyla.
+```{r artiodactyla}
+artiodactyla <- covariates2[covariates2$Order == "Artiodactyla",]
+
+## this DOES reorder by body mass!
+artiodactyla$CommName <- reorder(artiodactyla$CommName, artiodactyla$Weight)
+
+# plot
+ggplot(artiodactyla, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  facet_wrap(~ Factor)
+```
+
+Looking just at fire interval:
+```{r fire}
+# first, sort by the estimate
+art.fire <- artiodactyla[artiodactyla$Factor == "fire.interval",]
+art.fire$CommName <- reorder(art.fire$CommName, art.fire$Mean)
+
+# plot
+ggplot(art.fire, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Fire_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.fire, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at pans within 250 meters:
+```{r pans.250m}
+# first, sort by the estimate
+art.pan <- artiodactyla[artiodactyla$Factor == "pans.250m",]
+art.pan$CommName <- reorder(art.pan$CommName, art.pan$Mean)
+
+# plot
+ggplot(art.pan, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Pans_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.pan, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at pans within 500 meters:
+```{r pans.500m, eval=F}
+# first, sort by the estimate
+art.pan <- artiodactyla[artiodactyla$Factor == "pans.500m",]
+art.pan$CommName <- reorder(art.pan$CommName, art.pan$Mean)
+
+# plot
+ggplot(art.pan, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Pans_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.pan, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at poaching (all):
+```{r poaching.all, eval=F}
+# first, sort by the estimate
+art.poaching <- artiodactyla[artiodactyla$Factor == "poaching.all",]
+art.poaching$CommName <- reorder(art.poaching$CommName, art.poaching$Mean)
+
+# plot
+ggplot(art.poaching, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Poaching_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.poaching, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at poaching (high only):
+```{r poaching.high}
+# first, sort by the estimate
+art.poaching <- artiodactyla[artiodactyla$Factor == "poaching.high",]
+art.poaching$CommName <- reorder(art.poaching$CommName, art.poaching$Mean)
+
+# plot
+ggplot(art.poaching, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Poaching_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.poaching, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at distance from major roads:
+```{r road.major.distance}
+# first, sort by the estimate
+art.roads <- artiodactyla[artiodactyla$Factor == "road.major.distance",]
+art.roads$CommName <- reorder(art.roads$CommName, art.roads$Mean)
+
+# plot
+ggplot(art.roads, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Roads_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.roads, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at termite mound density within 500 meters:
+```{r termites.500m, eval=F}
+# first, sort by the estimate
+art.termites <- artiodactyla[artiodactyla$Factor == "termites.500m",]
+art.termites$CommName <- reorder(art.termites$CommName, art.termites$Mean)
+
+# plot
+ggplot(art.termites, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Termites_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.termites, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at large termite mound density within 100 meters (from field):
+```{r termite.large.count.100m}
+# first, sort by the estimate
+art.termites <- artiodactyla[artiodactyla$Factor == "termite.large.count.100m",]
+art.termites$CommName <- reorder(art.termites$CommName, art.termites$Mean)
+
+# plot
+ggplot(art.termites, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Termites_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.termites, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at tree cover within 250 meters:
+```{r tree.250m}
+# first, sort by the estimate
+art.tree <- artiodactyla[artiodactyla$Factor == "tree.250m",]
+art.tree$CommName <- reorder(art.tree$CommName, art.tree$Mean)
+
+# plot
+ggplot(art.tree, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Tree_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.tree, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at tree cover within 500 meters:
+```{r tree.500m, eval=F}
+# first, sort by the estimate
+art.tree <- artiodactyla[artiodactyla$Factor == "tree.500m",]
+art.tree$CommName <- reorder(art.tree$CommName, art.tree$Mean)
+
+# plot
+ggplot(art.tree, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Tree_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.tree, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+Looking just at distance from Lake Urema:
+```{r urema.distance}
+# first, sort by the estimate
+art.urema <- artiodactyla[artiodactyla$Factor == "urema.distance",]
+art.urema$CommName <- reorder(art.urema$CommName, art.urema$Mean)
+
+# plot
+ggplot(art.urema, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+
+# ggsave("Figures/Urema_Dry_CI.pdf", width = 8, height = 5)
+
+## OR - SD rather than 95% CI
+ggplot(art.urema, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=Mean-SD, ymax=Mean+SD), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+
+Figure out how to map results? From Lindsey:
+You can then back-transform occupancy values for each species in each grid cell. To get species richness you are correct, you'd sum the species-specific occupancy values. I think the back-transform equation is (you have to back transform b/c is logit(psi) = blah blah) the following, but double check... 
+[exp(alpha + mbeta1*cov1 + mbeta2*cov2 + sbeta1*cov1 + sbeta2*cov2)]
+1+[exp(alpha + mbeta1*cov1 + mbeta2*cov2 + sbeta1*cov1 + sbeta2*cov2)]
+where alpha, mbeta, and sbeta values are the output you get in that out.summary file (alpha and sbeta values are species-specific) and cov1 & cov2 values are the grid-cell specific covariate values.
+
+
+Examine patterns of species richness
+```{r richness}
+richness <- read.csv("Results/spprich.csv")
+cameras <- read.csv("Data/2018sitecov2.csv")
+
+richness <- join(richness, cameras)
+
+## Richness and habitat
+plot(Mean ~ Habitat_type, data=richness, ylab="Species Richness", xlab="Habitat Type (Open to Closed)")
+
+## Richness and lake distance
+plot(Mean ~ Lake_dist_km, data=richness, ylab="Species Richness", xlab="Distance to Lake (km)")
+abline(lm(Mean ~ Lake_dist_km, data=richness))
+```

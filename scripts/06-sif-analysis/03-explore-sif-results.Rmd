@@ -1,0 +1,1230 @@
+---
+title: "SIF Analysis Nov18"
+author: "Kaitlyn Gaynor"
+date: "11/12/2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+### Import and format SIF data (wide and long)
+
+Evaluate model output on species co-occurrence. The input files for this analysis are the SIF values calculated using a hierarchial occupancy model approach (from Lindsey Rich), which is laid out in CoOcc_Code.R. SIF (Species Interaction Factor) values 0-1 when species are less likely to co-occur (avoidance), and >1 when species are more likely to co-occur (attraction). 
+
+Prior to importing these files, I determined whether these SIF values were "significant" (95% credible intervals did not overlap with 0), and included a column for direction of results (negative, positive, or none - if not significant). I manually did this in Excel after exporting the files from R, though in retrospect should have coded this up for better reproducibility).
+
+```{r setup, message = F}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(glmulti)
+library(tidyverse)
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+dry <- read.csv("Results/SIF/SIF_2018DryYear1and2.csv", header=T)
+wet <- read.csv("Results/SIF/SIF_2018WetYear1and2.csv", header=T)
+
+# Take only the first seven rows, with columns for the two species codes, the direction of the SIF effect (negative, none if not significant, positive), SIF, sd, and upper and lower confidence intervals.
+dry <- dry[,1:6]
+wet <- wet[,1:6]
+```
+
+Log-transform SIF for modeling. Make symmetrical around 0, where negative values are negative interactions and positive values are positive interactions. (Currently, values from 0-1 are negative interactions, and >1 are positive interactions.)
+```{r transform, message = F}
+dry$SIF.ln <- log(dry$SIF)
+wet$SIF.ln <- log(wet$SIF)
+
+# make copies for later 
+dry2 <- dry
+wet2 <- wet
+
+names(dry) <- c("SppCode1", "SppCode2", "SIF.dry", "sd.dry", "LCI.dry", "UCI.dry", "SIF.dry.ln")
+names(wet) <- c("SppCode1", "SppCode2", "SIF.wet", "sd.wet", "LCI.wet", "UCI.wet", "SIF.wet.ln")
+```
+
+Join seasons and species traits together into one data frame.
+```{r join, message = F}
+# join SIF tables together
+sif <- join(dry, wet)
+
+dry2$Season <- "dry"
+wet2$Season <- "wet"
+sif.long <- rbind(dry2, wet2)
+names(sif.long) <- c("SppCode1", "SppCode2", "SIF", "sd", "LCI", "UCI", "SIF.ln", "Season")
+
+# restrict to LMH species EXCEPT eland (TAOR) and hippo (HIAM)
+sif <- subset(sif, SppCode1 == "AEME" | SppCode1 == "ALBU" | SppCode1 == "CENA" | SppCode1 == "COTA" 
+                | SppCode1 == "HINI" | SppCode1 == "KOEL" | SppCode1 == "LOAF" | SppCode1 == "OUOU" | SppCode1 == "PHAF" | SppCode1 == "POLA"
+                | SppCode1 == "RERE" | SppCode1 == "SYGR" | SppCode1 == "SYCA" | SppCode1 == "TRAN"
+                | SppCode1 == "TRST" | SppCode1 == "TRSY")
+sif <- subset(sif, SppCode2 == "AEME" | SppCode2 == "ALBU" | SppCode2 == "CENA" | SppCode2 == "COTA" 
+                | SppCode2 == "HINI" | SppCode2 == "KOEL" | SppCode2 == "LOAF" | SppCode2 == "OUOU" | SppCode2 == "PHAF" | SppCode2 == "POLA"
+                | SppCode2 == "RERE" | SppCode2 == "SYGR" | SppCode2 == "SYCA" | SppCode2 == "TRAN"
+                | SppCode2 == "TRST" | SppCode2 == "TRSY")
+sif.long <- subset(sif.long, SppCode1 == "AEME" | SppCode1 == "ALBU" | SppCode1 == "CENA" | SppCode1 == "COTA" 
+                | SppCode1 == "HINI" | SppCode1 == "KOEL" | SppCode1 == "LOAF" | SppCode1 == "OUOU" | SppCode1 == "PHAF" | SppCode1 == "POLA"
+                | SppCode1 == "RERE" | SppCode1 == "SYGR" | SppCode1 == "SYCA" | SppCode1 == "TRAN"
+                | SppCode1 == "TRST" | SppCode1 == "TRSY")
+sif.long <- subset(sif.long, SppCode2 == "AEME" | SppCode2 == "ALBU" | SppCode2 == "CENA" | SppCode2 == "COTA" 
+                | SppCode2 == "HINI" | SppCode2 == "KOEL" | SppCode2 == "LOAF" | SppCode2 == "OUOU" | SppCode2 == "PHAF" | SppCode2 == "POLA"
+                | SppCode2 == "RERE" | SppCode2 == "SYGR" | SppCode2 == "SYCA" | SppCode2 == "TRAN"
+                | SppCode2 == "TRST" | SppCode2 == "TRSY")
+
+# restrict to 11 COMMON LMH species: warthog, bushbuck, waterbuck, impala, kudu, oribi, nyala, reedbuck, elephant, bushpig, sable, buffalo (10 with diet data)
+#sif <- subset(sif, SppCode1 == "AEME" | SppCode1 == "HINI" | SppCode1 == "KOEL" | SppCode1 == "LOAF" | 
+#                SppCode1 == "OUOU" | SppCode1 == "PHAF" | SppCode1 == "POLA"
+#                | SppCode1 == "RERE" | SppCode1 == "SYCA" | SppCode1 == "TRAN" | SppCode1 == "TRST" | SppCode1 == "TRSY")
+#sif <- subset(sif, SppCode2 == "AEME" | SppCode2 == "HINI" | SppCode2 == "KOEL" | SppCode2 == "LOAF" | 
+#                SppCode2 == "OUOU" | SppCode2 == "PHAF" | SppCode2 == "POLA"
+#                | SppCode2 == "RERE" | SppCode2 == "SYCA" | SppCode2 == "TRAN" | SppCode2 == "TRST" | SppCode2 == "TRSY")
+#sif.long <- subset(sif.long, SppCode1 == "AEME" | SppCode1 == "HINI"|  SppCode1 == "KOEL" | 
+#                     SppCode1 == "LOAF" | SppCode1 == "OUOU" | SppCode1 == "PHAF" | SppCode1 == "POLA"
+#                | SppCode1 == "RERE" | SppCode1 == "SYCA" | SppCode1 == "TRAN" | SppCode1 == "TRST" | SppCode1 == "TRSY")
+#sif.long <- subset(sif.long, SppCode2 == "AEME" | SppCode2 == "HINI" | SppCode2 == "KOEL" | 
+#                     SppCode2 == "LOAF" | SppCode2 == "OUOU" | SppCode2 == "PHAF" | SppCode2 == "POLA"
+#                | SppCode2 == "RERE" | SppCode2 == "SYCA" | SppCode2 == "TRAN" | SppCode2 == "TRST" | SppCode2 == "TRSY")
+#
+
+
+# import species trait data
+species <- read.csv("Data/2018spp_kingdon.csv", header=T)
+species <- species[, 1:26] # select first 18 columns, which contain traits of interest
+
+species$Hempsen_diet2 <- fct_collapse(species$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+## create new columns for species codes, for later matching, then join
+species$SppCode1 <- species$SppCode
+sif <- left_join(sif, species, by = "SppCode1") # ignore warning
+sif.long <- left_join(sif.long, species, by = "SppCode1") # ignore warning
+species$SppCode2 <- species$SppCode
+sif <- left_join(sif, species, by = "SppCode2") # ignore warning
+sif.long <- left_join(sif.long, species, by = "SppCode2") # ignore warning
+
+## clean up duplicate column names for SppCode1:
+colnames(sif)[colnames(sif)=="SppCode2.x"] <- "SppCode2"
+colnames(sif)[colnames(sif)=="SppCode1.x"] <- "SppCode1"
+sif$SppCode1.y <- NULL
+colnames(sif.long)[colnames(sif.long)=="SppCode2.x"] <- "SppCode2"
+colnames(sif.long)[colnames(sif.long)=="SppCode1.x"] <- "SppCode1"
+sif.long$SppCode1.y <- NULL
+```
+
+
+### Comparison of spatial partitioning, temporal partitioning, and dietary partitioning
+
+#### Bring in other data sets
+Compare with Johan's results about dietary partitioning, from his recently published paper in Journal of Ecology.
+```{r diet comparison}
+diet <- read.csv("Data/SIF/Pansu_overlap.csv")
+sif <- left_join(sif, diet)
+sif.long <- left_join(sif.long, diet)
+```
+
+Combine with temporal overlap data, generated from time stamps on camera trap data using the overlap package (see code Temporal_overlap.R).
+```{r temporal}
+temporal <- read.csv("Results/Overlap_temporal_031919.csv")
+sif <- left_join(sif, temporal)
+
+temporal.long <- temporal %>% gather('Dhat1.wet.year1and2', 'Dhat1.dry.year1and2', key = "Season", value = "Dhat1") %>%
+  dplyr::select(SppCode1, SppCode2, Season, Dhat1)
+temporal.long$Season <- revalue(temporal.long$Season, c("Dhat1.wet.year1and2" = "wet", "Dhat1.dry.year1and2" = "dry"))
+sif.long <- left_join(sif.long, temporal.long)
+```
+
+ Also, bring in Gorongosa RAI analysis.
+```{r rai}
+rai.correlations <- read.csv("Results/Overlap_RAI_031919.csv")
+sif <- left_join(sif, rai.correlations)
+
+rai.correlations.long <- rai.correlations %>% gather('RAI.correlation.wet.year1and2', 'RAI.correlation.dry.year1and2', key = "Season", value = "RAI.correlation") %>%
+  dplyr::select(SppCode1, SppCode2, Season, RAI.correlation)
+rai.correlations.long$Season <- revalue(rai.correlations.long$Season, c("RAI.correlation.wet.year1and2" = "wet", "RAI.correlation.dry.year1and2" = "dry"))
+sif.long <- left_join(sif.long, rai.correlations.long)
+
+sif.long$Season <- as.factor(sif.long$Season)
+levels(sif.long$Season) <- c("Dry", "Wet")
+```
+
+## Make some plots 
+
+#### Correlation plots with ggcor
+```{r corrgram}
+library(corrplot)
+library(spaa)
+library(RColorBrewer)
+
+# sif
+sif.dry.matrix <- xtabs(SIF.dry.ln ~ SppCode1 + SppCode2 , data = sif)
+sif.wet.matrix <- xtabs(SIF.wet.ln ~ SppCode1 + SppCode2 , data = sif)
+
+pdf('Figures/Overlap/Matrix_SIF_dry.pdf', useDingbats = F)
+corrplot(sif.dry.matrix, col = c("black", "#F8766D"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+pdf('Figures/Overlap/Matrix_SIF_wet.pdf', useDingbats = F)
+corrplot(sif.wet.matrix, col = c("black", "#00BFC4"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+# rai
+rai.dry.matrix <- xtabs(RAI.correlation.dry.year1and2 ~ SppCode1 + SppCode2 , data = sif)
+rai.wet.matrix <- xtabs(RAI.correlation.wet.year1and2 ~ SppCode1 + SppCode2 , data = sif)
+
+pdf('Figures/Overlap/Matrix_RAI_dry.pdf', useDingbats = F)
+corrplot(rai.dry.matrix, col = c("black", "#F8766D"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+pdf('Figures/Overlap/Matrix_RAI_wet.pdf', useDingbats = F)
+corrplot(rai.wet.matrix, col = c("black", "#00BFC4"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+# time - subtracting 0.5 so that negative values mean dissimilar, and positive mean similar
+dhat.dry.matrix <- xtabs((Dhat1.dry.year1and2 - 0.5) ~ SppCode1 + SppCode2 , data = sif)
+dhat.wet.matrix <- xtabs((Dhat1.wet.year1and2 - 0.5) ~ SppCode1 + SppCode2 , data = sif)
+
+pdf('Figures/Overlap/Matrix_dhat_dry.pdf', useDingbats = F)
+corrplot(dhat.dry.matrix, col = c("black", "#F8766D"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+pdf('Figures/Overlap/Matrix_dhat_wet.pdf', useDingbats = F)
+corrplot(dhat.wet.matrix, col = c("black", "#00BFC4"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+# DRY VS WET CORR DIFFERENCES
+sif$RAI.correlation.difference <- sif$RAI.correlation.wet.year1and2 - sif$RAI.correlation.dry.year1and2
+rai.diff.matrix <- xtabs(RAI.correlation.difference ~ SppCode1 + SppCode2 , data = sif)
+pdf('Figures/Overlap/Matrix_RAI_diff.pdf', useDingbats = F)
+corrplot(rai.diff.matrix, col = c("#F8766D", "#00BFC4"), cl.lim=c(-1,1), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+sif$Dhat1.difference <- sif$Dhat1.wet.year1and2 - sif$Dhat1.dry.year1and2
+dhat.diff.matrix <- xtabs(Dhat1.difference ~ SppCode1 + SppCode2 , data = sif)
+pdf('Figures/Overlap/Matrix_dhat_diff.pdf', useDingbats = F)
+corrplot(dhat.diff.matrix, col = c("#F8766D", "#00BFC4"), cl.lim=c(-1,1), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+sif$SIF.difference <- sif$SIF.wet.ln - sif$SIF.dry.ln
+sif.diff.matrix <- xtabs(SIF.difference ~ SppCode1 + SppCode2 , data = sif)
+pdf('Figures/Overlap/Matrix_SIF_diff.pdf', useDingbats = F)
+corrplot(sif.diff.matrix, col = c("#F8766D", "#00BFC4"), cl.lim=c(-2,2), type = "lower", is.corr = FALSE, tl.col = "black", tl.srt=45)
+dev.off()
+
+
+```
+
+
+#### Wet vs dry seasons for each overlap category
+
+```{r wet dry overlap comparisons}
+# temporal wet vs dry
+#pdf('Figures/Overlap/temporal_wetvsdry.pdf')
+ggplot(sif, aes(x = Dhat1.wet.year1and2, y = Dhat1.dry.year1and2)) + 
+  geom_point() + 
+  geom_abline() +
+  geom_smooth(method='lm') +
+  xlab("Dry Season") +
+  ylab("Wet Season") +
+  ggtitle("Temporal Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/temporal_wetvsdry_boxplot.pdf')
+ggplot(sif.long, aes(x = Season, y = Dhat1, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("Temporal Overlap") +
+  ggtitle("Temporal Overlap by Season")
+#dev.off()
+
+# RAI wet vs dry
+#pdf('Figures/Overlap/RAI_wetvsdry.pdf')
+ggplot(sif, aes(x = RAI.correlation.dry.year1and2, y = RAI.correlation.wet.year1and2)) + 
+  geom_point() + 
+#  geom_abline() +
+#  geom_smooth(method='lm') +
+  xlab("Dry Season") +
+  ylab("Wet Season") +
+  ggtitle("Spatial Activity (RAI) Correlation") 
+#dev.off()
+
+#pdf('Figures/Overlap/RAI_wetvsdry.pdf')
+#ggplot(sif.koel, aes(x = RAI.correlation.dry.year1and2, y = #RAI.correlation.wet.year1and2)) + 
+#  geom_point() + 
+#  geom_abline() +
+##  geom_smooth(method='lm') +
+#  xlab("Dry Season") +
+#  ylab("Wet Season") +
+#  ggtitle("Spatial Activity (RAI) Correlation") +
+#  geom_text(aes(label=paste(SppCode1,SppCode2)),hjust=0, vjust=0)
+#dev.off()
+
+#pdf('Figures/Overlap/RAI_wetvsdry_boxplot.pdf')
+ggplot(sif.long, aes(x = Season, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("RAI Correlation") +
+  ggtitle("RAI Correlation by Season")
+#dev.off()
+
+# paired T-test - significantly higher RAI correlations in wet than dry
+t.test(sif.long[sif.long$Season == 'Dry',]$RAI.correlation, sif.long[sif.long$Season == 'Wet',]$RAI.correlation, paired = T)
+
+# paired T-test - significantly higher SIF in wet than dry
+t.test(sif.long[sif.long$Season == 'Dry',]$SIF.ln, sif.long[sif.long$Season == 'Wet',]$SIF.ln, paired = T)
+
+
+#ggplot(sif.long.koel, aes(x = Season, y = RAI.correlation, fill = Season)) + geom_boxplot() 
+
+# SIF wet vs dry
+#pdf('Figures/Overlap/SIF_wetvsdry.pdf')
+ggplot(sif, aes(x = SIF.dry.ln, y = SIF.wet.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dry Season") +
+  ylab("Wet Season") +
+  ggtitle("Spatial Occupancy (SIF) Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/SIF_wetvsdry_boxplot.pdf')
+ggplot(sif.long, aes(x = Season, y = SIF.ln, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("SIF") +
+  ggtitle("SIF by Season")
+#dev.off()
+```
+
+
+
+#### Temporal overlap vs RAI correlation and SIF
+```{r space and time comparison}
+# both season space ~ time (RAI)
+#pdf('Figures/Overlap/RAI_vs_time_both_season.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = RAI.correlation, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Activity Correlation") +
+  ylab("Temporal Activity Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/Time_vs_RAI_both_season.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Dhat1, y = RAI.correlation, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Temporal Activity Overlap") +
+  ylab("Spatial Activity Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/SIF_vs_time_both_season.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = SIF.ln, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Occupancy Correlation (SIF)") +
+  ylab("Temporal Activity Overlap")
+#dev.off()
+
+# dry space ~ time (RAI)
+ggplot(sif, aes(x = RAI.correlation.dry.year1and2, y = Dhat1.dry.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Activity Correlation") +
+  ylab("Temporal Activity Overlap") +
+  ggtitle("Dry Season")
+
+# not significant
+fit <- lm(Dhat1.dry.year1and2 ~ RAI.correlation.dry.year1and2, data = sif)
+summary(fit)
+
+# wet space ~ time (RAI)
+ggplot(sif, aes(x = RAI.correlation.wet.year1and2, y = Dhat1.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Activity Correlation") +
+  ylab("Temporal Activity Overlap") +
+  ggtitle("Wet Season")
+
+fit <- lm(Dhat1.dry.year1and2 ~ RAI.correlation.wet.year1and2, data = sif)
+summary(fit)
+```
+
+#### RAI correlation vs SIF
+
+```{r space occupancy vs RAI comparison}
+# both season space ~ time (RAI)
+#pdf('Figures/Overlap/RAI_vs_SIF_both_season.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = RAI.correlation, y = SIF, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("RAI Correlation") +
+  ylab("SIF (Occupancy Correlation)")
+#dev.off()
+```
+
+#### Temporal overlap vs diet overlap
+
+```{r temporal vs diet}
+# Pianka dietary overlap vs temporal overlap
+##pdf('Figures/Overlap/Pianka_vs_temporal_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = Dhat1.dry.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary and Temporal Overlap (Dry Season)")
+##dev.off()
+
+##pdf('Figures/Overlap/Pianka_vs_temporal_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = Dhat1.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary and Temporal Overlap (Wet Season)")
+##dev.off()
+
+#pdf('Figures/Overlap/Pianka_vs_temporal_both_seasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Pianka_dietary_overlap, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary and Temporal Overlap")
+#dev.off()
+
+# Bray Curtis dissimilarity index vs time
+##pdf('Figures/Overlap/BrayCurtis_vs_temporal_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = Dhat1.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Temporal Overlap") +
+  ggtitle("Wet Season")
+##dev.off()
+
+##pdf('Figures/Overlap/BrayCurtis_vs_temporal_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = Dhat1.dry.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dry Season")
+##dev.off()
+
+#pdf('Figures/Overlap/BrayCurtis_vs_temporal_both_seasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Bray_Curtis_dissimilarities, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary Dissimilarity and Temporal Overlap")
+#dev.off()
+
+
+# with all of the text labels
+ggplot(sif, aes(x = Dhat1.dry.year1and2, y = Bray_Curtis_dissimilarities)) + 
+  geom_point() + 
+  geom_text(aes(label = paste(sif$SppCode1, sif$SppCode2)))
+```
+
+#### RAI correlation vs diet overlap
+
+```{r RAI vs diet}
+# Pianka dietary overlap vs RAI correlation
+##pdf('Figures/Overlap/Pianka_vs_RAI_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = RAI.correlation.dry.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation (Dry Season)")
+##dev.off()
+
+##pdf('Figures/Overlap/Pianka_vs_RAI_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = RAI.correlation.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation (Wet Season)")
+##dev.off()
+
+#pdf('Figures/Overlap/Pianka_vs_RAI_bothseasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Pianka_dietary_overlap, y = RAI.correlation, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation")
+#dev.off()
+
+pdf('Figures/Overlap/Pianka_vs_RAI_bothseasons_separate.pdf', width = 6, height = 4, useDingbats = F)
+ggplot(sif.long, aes(x = Pianka_dietary_overlap, y = RAI.correlation, col = Season, fill = Season, label = paste(SppCode1, SppCode2))) + 
+  geom_point() + 
+#  scale_x_reverse() +
+  geom_smooth(method='lm') +
+  xlab("Pianka Dietary Overlap") +
+  ylab("Correlation (Pearson's r) between RAI") +
+#  ggtitle("Dietary and Spatial Correlation") +
+  facet_wrap(~Season) +
+#  geom_text() +
+  theme(legend.position="none") 
+dev.off()
+
+fit <- lm(RAI.correlation ~ Pianka_dietary_overlap, data = subset(sif.long, Season == 'Dry'))  
+summary(fit)
+fit <- lm(RAI.correlation ~ Pianka_dietary_overlap, data = subset(sif.long, Season == 'Wet'))  
+summary(fit)
+
+# Bray Curtis dissimilarity index vs RAI Correlation
+##pdf('Figures/Overlap/BrayCurtis_vs_RAI_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = RAI.correlation.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Spatial Correlation") +
+  ggtitle("Wet Season")
+##dev.off()
+
+##pdf('Figures/Overlap/BrayCurtis_vs_RAI_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = RAI.correlation.dry.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dry Season")
+##dev.off()
+
+#pdf('Figures/Overlap/BrayCurtis_vs_RAI_bothseasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Bray_Curtis_dissimilarities, y = RAI.correlation, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation")
+#dev.off()
+
+pdf('Figures/Overlap/BrayCurtis_vs_RAI_bothseasons_separate.pdf', width = 6, height = 4, useDingbats = F)
+ggplot(sif.long, aes(x = Bray_Curtis_dissimilarities, y = RAI.correlation, col = Season, fill = Season, label = paste(SppCode1, SppCode2))) + 
+  geom_point() + 
+#  scale_x_reverse() +
+  geom_smooth(method='lm') +
+  xlab("Bray-Curtis Dietary Dissimilarity") +
+  ylab("Spatial Correlation") +
+#  ggtitle("Dietary and Spatial Correlation") +
+  facet_wrap(~Season) +
+#  geom_text() +
+  theme(legend.position="none") 
+dev.off()
+
+# stronger relationship for wet season but not dry; neither is significant
+fit <- lm(RAI.correlation ~ Bray_Curtis_dissimilarities, data = subset(sif.long, Season == 'Dry'))  
+summary(fit)
+fit <- lm(RAI.correlation ~ Bray_Curtis_dissimilarities, data = subset(sif.long, Season == 'Wet'))  
+summary(fit)
+
+# model of niche width and Season vs fire return frequency with Species as random effect
+#fit <- lme(Mean ~ Pansu_pop_niche_width + Season, random = (~1|SppCode), na.action = 'na.omit', data = subset(sppcov, Factor == "fire.interval" & LMH =="yes"))  
+#summary(fit)
+```
+
+#### SIF vs diet overlap
+
+```{r SIF vs diet}
+# Pianka dietary overlap vs SIF
+##pdf('Figures/Overlap/Pianka_vs_SIF_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = SIF.dry.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("SIF") +
+  ggtitle("Dietary and SIF (Dry Season)")
+##dev.off()
+
+##pdf('Figures/Overlap/Pianka_vs_SIF_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Pianka_dietary_overlap, y = SIF.wet.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("SIF") +
+  ggtitle("Dietary and SIF (Wet Season)")
+##dev.off()
+
+#pdf('Figures/Overlap/Pianka_vs_SIF_both_seasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Pianka_dietary_overlap, y = SIF.ln, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("SIF") +
+  ggtitle("Dietary and SIF")
+#dev.off()
+
+# Bray Curtis dissimilarity index vs SIF
+##pdf('Figures/Overlap/BrayCurtis_vs_SIF_wet.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = SIF.wet.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("SIF") +
+  ggtitle("Wet Season")
+##dev.off()
+
+##pdf('Figures/Overlap/BrayCurtis_vs_SIF_dry.pdf', width = 6, height = 4)
+ggplot(sif, aes(x = Bray_Curtis_dissimilarities, y = SIF.dry.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("SIF") +
+  ggtitle("Dry Season")
+##dev.off()
+
+#pdf('Figures/Overlap/BrayCurtis_vs_SIF_both_seasons.pdf', width = 6, height = 4)
+ggplot(sif.long, aes(x = Bray_Curtis_dissimilarities, y = SIF.ln, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("SIF") +
+  ggtitle("Dietary Dissimilarity and SIF")
+#dev.off()
+```
+
+
+
+
+
+Network figures - code copied from June 2018 experimentation. To edit code.
+```{r network figures, eval = F}
+## NETWORK ANALYSIS
+
+
+## get in format for network analysis
+
+dry_net <- data.frame(matrix(ncol=0, nrow=406))  ## 406 if you drop the less common
+dry_net$from <- dry_sif_only$SppCode1
+dry_net$to <- dry_sif_only$SppCode2
+dry_net$weight <- abs(dry_sif_only$lnSIF)
+dry_net$from <- droplevels(dry_net$from) ## remove empty levels from factor (causes errors later)
+dry_net$to <- droplevels(dry_net$to) ## remove empty levels from factor (causes errors later)
+dry_net$direction <- dry_sif_only$Direction
+dry_net$direction.int <- as.integer(dry_net$direction)
+
+## make nodes, excluding rare species (optionally)
+dry_nodes <- metadata
+dry_nodes <- dry_nodes[dry_nodes$Code != "HEPA",]
+for (species in c("TAOR", "HIAM", "MATE", "SYGR", "PALE", "HEIC", "CEAL", "LESE", "HEPA", "TRSC")) {
+  dry_nodes <- dry_nodes[dry_nodes$Code != species, ]
+}
+colnames(dry_nodes)[colnames(dry_nodes)=="Code"] <- "id"
+dry_nodes$id <- droplevels(dry_nodes$id)
+
+## workaround: make order an integer so it can be used for color
+dry_nodes$Order <- as.integer(dry_nodes$Order)
+
+## make network
+net <- graph_from_data_frame(d=dry_net, vertices=dry_nodes, directed=T) 
+
+plot(net, edge.arrow.size=.4, vertex.label=V(net)$CommName)
+
+
+## make nodes ## only 10 most common - I can't figure out how to do this by inclusion, unfortunately... so this is by exclusion
+dry_nodes_10 <- metadata
+for (species in c("ALBU", "ATPA", "BDCR", "CEAL", "CENA", "CHPY", "COTA", "GASA", "HEIC", "HEPA", "HIAM", "HINI", "HYAF", "ICAL", "LEMI", "LESE", "MATE", "MECA", "MUMU", "ORAF", "OTCR", "PALE", "POLA", "RERE", "SYCA", "SYGR", "TAOR", "TRST")) {
+  dry_nodes_10 <- dry_nodes_10[dry_nodes_10$Code != species, ]
+}
+colnames(dry_nodes_10)[colnames(dry_nodes_10)=="Code"] <- "id"
+dry_nodes_10$id <- droplevels(dry_nodes_10$id)
+dry_nodes_10$Order <- as.integer(dry_nodes_10$Order)
+
+## only 10 most common - I can't figure out how to do this by inclusion, unfortunately... so this is by exclusion
+dry_net_10 <- dry_net
+for (species in c("ALBU", "ATPA", "BDCR", "CEAL", "CENA", "CHPY", "COTA", "GASA", "HEIC", "HEPA", "HIAM", "HINI", "HYAF", "ICAL", "LEMI", "LESE", "MATE", "MECA", "MUMU", "ORAF", "OTCR", "PALE", "POLA", "RERE", "SYCA", "SYGR", "TAOR", "TRST")) {
+  dry_net_10 <- dry_net_10[dry_net_10$from != species, ]
+  dry_net_10 <- dry_net_10[dry_net_10$to != species, ]
+}
+dry_net_10$to <- droplevels(dry_net_10$to)
+dry_net_10$from <- droplevels(dry_net_10$from)
+
+net.10 <- graph_from_data_frame(d=dry_net_10, vertices=dry_nodes_10, directed=F) 
+E(net.10)$width <- (E(net.10)$weight) * 100
+plot(net.10, edge.arrow.size=.4, vertex.label=V(net.10)$CommName)
+
+## remove null interactions
+net.10.nonull <- net.10 - E(net.10)[E(net.10)$direction=="None"]
+plot(net.10.nonull)
+
+## with ALL species
+net.all <- graph_from_data_frame(d=dry_net, vertices=dry_nodes, directed=T) 
+net.all.nonull <- net.all - E(net.all)[E(net.all)$direction=="None"]
+E(net.all.nonull)$width <- (E(net.all.nonull)$weight) * 10 + 2
+
+colrs <- c("#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3")
+V(net.all.nonull)$color <- colrs[(V(net.all.nonull)$Order)]
+plot(net.all.nonull, vertex.label=V(net.all.nonull)$CommName, edge.color="dark green") 
+
+
+
+
+
+# edge color not working...
+E(net.all.nonull)$edge.color <- colrs.edge[(E(net.all.nonull)$direction.int)] 
+colrs.edge <- c("dark red", "gray50", "dark green")
+
+
+## adjacency matrix  - not working
+netm <- get.adjacency(net, attr="weight", sparse=F) 
+colnames(netm) <- V(net)$id
+rownames(netm) <- V(net)$id
+palf <- colorRampPalette(c("gold", "dark orange")) 
+heatmap(netm, Rowv = NA, Colv = NA, col = palf(100), scale="none")
+
+```
+
+## JUST looking at waterbuck....
+
+```{r just waterbuck}
+sif.koel <- subset(sif, SppCode1 == "KOEL" | SppCode2 == "KOEL")
+sif.long.koel <- subset(sif.long, SppCode1 == "KOEL" | SppCode2 == "KOEL")
+
+# temporal wet vs dry
+#pdf('Figures/Overlap/Waterbuck_only/temporal_wetvsdry.pdf')
+ggplot(sif.koel, aes(x = Dhat1.dry.year1and2, y = Dhat1.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Wet Season") +
+  ylab("Dry Season") +
+  ggtitle("Temporal Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/temporal_wetvsdry_boxplot.pdf')
+ggplot(sif.long.koel, aes(x = Season, y = Dhat1, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("Temporal Overlap") +
+  ggtitle("Temporal Overlap by Season")
+#dev.off()
+
+# RAI wet vs dry
+#pdf('Figures/Overlap/Waterbuck_only/RAI_wetvsdry.pdf')
+ggplot(sif.koel, aes(x = RAI.correlation.dry.year1and2, y = RAI.correlation.wet.year1and2)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Wet Season") +
+  ylab("Dry Season") +
+  ggtitle("Spatial Activity (RAI) Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/RAI_wetvsdry_boxplot.pdf')
+ggplot(sif.long.koel, aes(x = Season, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("RAI Correlation") +
+  ggtitle("RAI Correlation by Season")
+#dev.off()
+
+# SIF wet vs dry
+#pdf('Figures/Overlap/Waterbuck_only/SIF_wetvsdry.pdf')
+ggplot(sif.koel, aes(x = SIF.dry.ln, y = SIF.wet.ln)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Wet Season") +
+  ylab("Dry Season") +
+  ggtitle("Spatial Occupancy (SIF) Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/SIF_wetvsdry_boxplot.pdf')
+ggplot(sif.long.koel, aes(x = Season, y = SIF.ln, fill = Season)) + 
+  geom_boxplot() + 
+  xlab("Season") +
+  ylab("SIF") +
+  ggtitle("SIF by Season")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/RAI_vs_time_both_season.pdf')
+ggplot(sif.long.koel, aes(x = RAI.correlation, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Activity Correlation") +
+  ylab("Temporal Activity Overlap")
+
+#pdf('Figures/Overlap/Waterbuck_only/SIF_vs_time_both_season.pdf')
+ggplot(sif.long.koel, aes(x = SIF.ln, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Spatial Occupancy Correlation (SIF)") +
+  ylab("Temporal Activity Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/RAI_vs_SIF_both_season.pdf')
+ggplot(sif.long.koel, aes(x = RAI.correlation, y = SIF, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("RAI Correlation") +
+  ylab("SIF (Occupancy Correlation)")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/Pianka_vs_temporal_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Pianka_dietary_overlap, y = Dhat1, col = Season)) +   geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary and Temporal Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/BrayCurtis_vs_temporal_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Bray_Curtis_dissimilarities, y = Dhat1, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Temporal Overlap") +
+  ggtitle("Dietary Dissimilarity and Temporal Overlap")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/Pianka_vs_RAI_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Pianka_dietary_overlap, y = RAI.correlation, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/BrayCurtis_vs_RAI_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Bray_Curtis_dissimilarities, y = RAI.correlation, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("Spatial Correlation") +
+  ggtitle("Dietary and Spatial Correlation")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/Pianka_vs_SIF_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Pianka_dietary_overlap, y = SIF, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Overlap") +
+  ylab("SIF") +
+  ggtitle("Dietary and SIF")
+#dev.off()
+
+#pdf('Figures/Overlap/Waterbuck_only/BrayCurtis_vs_SIF_both_seasons.pdf')
+ggplot(sif.long.koel, aes(x = Bray_Curtis_dissimilarities, y = SIF, col = Season)) + 
+  geom_point() + 
+  geom_smooth(method='lm') +
+  xlab("Dietary Dissimilarity") +
+  ylab("SIF") +
+#  scale_x_reverse() +
+  ggtitle("Dietary Dissimilarity and SIF")
+#dev.off()
+
+```
+
+### Evaluate the influence of traits on patterns of species co-occurrence.
+
+#### Create new columns comparing species traits.
+
+First, check to see if the species are the same or different for several traits: activity patterns, sociality, mass category, trophic level, Order, and Family. Create a new column for each of these traits, with a value of either "same" or "different". [KG: This note is no longer relevant, because I changed i in 1:703 to i in 1:nrow(sif) : Note that the number in the for loop will change if only a subset of species are used (but I'd do this first, then subset later). 703 represents the number of unique pairs for all 38 species.]
+```{r traits}
+for (i in 1:nrow(sif)) {
+  sif$activity.match[i] = ifelse(sif$Activity_pattern.x[i] == sif$Activity_pattern.y[i], 'same', 'different')
+  sif$sociality.match[i] = ifelse(sif$Sociality.x[i] == sif$Sociality.y[i], 'same', 'different')
+  sif$masscategory.match[i] = ifelse(sif$Mass_category.x[i] == sif$Mass_category.y[i], 'same', 'different')
+  sif$hempsen.match[i] = ifelse(sif$Hempsen_category.x[i] == sif$Hempsen_category.y[i], 'same', 'different')
+  sif$diet.match[i] = ifelse(sif$Diet.x[i] == sif$Diet.y[i], 'same', 'different')
+  sif$order.match[i] = ifelse(sif$Order.x[i] == sif$Order.y[i], 'same', 'different')
+  sif$family.match[i] = ifelse(sif$Family.x[i] == sif$Family.y[i], 'same', 'different')
+  sif$diet2.match[i] = ifelse(sif$Hempsen_diet2.x[i] == sif$Hempsen_diet2.y[i], 'same', 'different')
+  sif$waterdep.match[i] = ifelse(sif$Hempsen_water_dependence.x[i] == sif$Hempsen_water_dependence.y[i], 'same', 'different')
+  sif$herdsize.match[i] = ifelse(sif$Hempsen_herd_size.x[i] == sif$Hempsen_herd_size.y[i], 'same', 'different')
+  
+}
+
+# now make them all factors
+sif$activity.match <- as.factor(sif$activity.match)
+sif$sociality.match <- as.factor(sif$sociality.match)
+sif$masscategory.match <- as.factor(sif$masscategory.match)
+sif$diet.match <- as.factor(sif$diet.match)
+sif$hempsen.match <- as.factor(sif$hempsen.match)
+sif$order.match <- as.factor(sif$order.match)
+sif$family.match <- as.factor(sif$family.match)
+sif$diet2.match <- as.factor(sif$diet2.match)
+sif$waterdep.match <- as.factor(sif$waterdep.match)
+sif$herdsize.match <- as.factor(sif$herdsize.match)
+
+# SAME FOR LONG
+
+for (i in 1:nrow(sif.long)) {
+  sif.long$activity.match[i] = ifelse(sif.long$Activity_pattern.x[i] == sif.long$Activity_pattern.y[i], 'same', 'different')
+  sif.long$sociality.match[i] = ifelse(sif.long$Sociality.x[i] == sif.long$Sociality.y[i], 'same', 'different')
+  sif.long$masscategory.match[i] = ifelse(sif.long$Mass_category.x[i] == sif.long$Mass_category.y[i], 'same', 'different')
+  sif.long$hempsen.match[i] = ifelse(sif.long$Hempsen_category.x[i] == sif.long$Hempsen_category.y[i], 'same', 'different')
+  sif.long$diet.match[i] = ifelse(sif.long$Diet.x[i] == sif.long$Diet.y[i], 'same', 'different')
+  sif.long$order.match[i] = ifelse(sif.long$Order.x[i] == sif.long$Order.y[i], 'same', 'different')
+  sif.long$family.match[i] = ifelse(sif.long$Family.x[i] == sif.long$Family.y[i], 'same', 'different')
+  sif.long$diet2.match[i] = ifelse(sif.long$Hempsen_diet2.x[i] == sif.long$Hempsen_diet2.y[i], 'same', 'different')
+  sif.long$waterdep.match[i] = ifelse(sif.long$Hempsen_water_dependence.x[i] == sif.long$Hempsen_water_dependence.y[i], 'same', 'different')
+  sif.long$herdsize.match[i] = ifelse(sif.long$Hempsen_herd_size.x[i] == sif.long$Hempsen_herd_size.y[i], 'same', 'different')
+}
+
+# now make them all factors
+sif.long$activity.match <- as.factor(sif.long$activity.match)
+sif.long$sociality.match <- as.factor(sif.long$sociality.match)
+sif.long$masscategory.match <- as.factor(sif.long$masscategory.match)
+sif.long$diet.match <- as.factor(sif.long$diet.match)
+sif.long$hempsen.match <- as.factor(sif.long$hempsen.match)
+sif.long$order.match <- as.factor(sif.long$order.match)
+sif.long$family.match <- as.factor(sif.long$family.match)
+sif.long$diet2.match <- as.factor(sif.long$diet2.match)
+sif.long$waterdep.match <- as.factor(sif.long$waterdep.match)
+sif.long$herdsize.match <- as.factor(sif.long$herdsize.match)
+```
+
+Let's do a second trait comparison, in which the traits are concatenated rather than compared, so there are different levels (rather than just same/different). The ifelse statement puts them in alphabetical order, so that "diurnal nocturnal" and "nocturnal diurnal" both become "diurnal nocturnal.""
+```{r traits 2}
+for (i in 1:nrow(sif)) {
+  sif$activity.combined[i] = ifelse(as.character(sif$Activity_pattern.x[i]) < as.character(sif$Activity_pattern.y[i]), 
+    paste(sif$Activity_pattern.x[i], sif$Activity_pattern.y[i], sep="_"),
+    paste(sif$Activity_pattern.y[i], sif$Activity_pattern.x[i], sep="_")
+  )
+
+  sif$sociality.combined[i] = ifelse(as.character(sif$Sociality.x[i]) < as.character(sif$Sociality.y[i]), 
+    paste(sif$Sociality.x[i], sif$Sociality.y[i], sep="_"),
+    paste(sif$Sociality.y[i], sif$Sociality.x[i], sep="_")
+  )
+
+  sif$masscategory.combined[i] = ifelse(as.character(sif$Mass_category.x[i]) < as.character(sif$Mass_category.y[i]), 
+    paste(sif$Mass_category.x[i], sif$Mass_category.y[i], sep="_"),
+    paste(sif$Mass_category.y[i], sif$Mass_category.x[i], sep="_")
+  )
+
+  sif$diet.combined[i] = ifelse(as.character(sif$Diet.x[i]) < as.character(sif$Diet.y[i]), 
+    paste(sif$Diet.x[i], sif$Diet.y[i], sep="_"),
+    paste(sif$Diet.y[i], sif$Diet.x[i], sep="_")
+  )
+
+  sif$hempsen.combined[i] = ifelse(as.character(sif$Hempsen_category.x[i]) < as.character(sif$Hempsen_category.y[i]), 
+    paste(sif$Hempsen_category.x[i], sif$Hempsen_category.y[i], sep="_"),
+    paste(sif$Hempsen_category.y[i], sif$Hempsen_category.x[i], sep="_")
+  )
+
+  sif$order.combined[i] = ifelse(as.character(sif$Order.x[i]) < as.character(sif$Order.y[i]), 
+    paste(sif$Order.x[i], sif$Order.y[i], sep="_"),
+    paste(sif$Order.y[i], sif$Order.x[i], sep="_")
+  )
+
+  sif$family.combined[i] = ifelse(as.character(sif$Family.x[i]) < as.character(sif$Family.y[i]), 
+    paste(sif$Family.x[i], sif$Family.y[i], sep="_"),
+    paste(sif$Family.y[i], sif$Family.x[i], sep="_")
+  )
+  
+  sif$diet2.combined[i] = ifelse(as.character(sif$Hempsen_diet2.x[i]) < as.character(sif$Hempsen_diet2.y[i]), 
+    paste(sif$Hempsen_diet2.x[i], sif$Hempsen_diet2.y[i], sep="_"),
+    paste(sif$Hempsen_diet2.y[i], sif$Hempsen_diet2.x[i], sep="_")
+  )
+
+  sif$waterdep.combined[i] = ifelse(as.character(sif$Hempsen_water_dependence.x[i]) < as.character(sif$Hempsen_water_dependence.y[i]), 
+    paste(sif$Hempsen_water_dependence.x[i], sif$Hempsen_water_dependence.y[i], sep="_"),
+    paste(sif$Hempsen_water_dependence.y[i], sif$Hempsen_water_dependence.x[i], sep="_")
+  )
+
+  sif$herdsize.combined[i] = ifelse(as.character(sif$Hempsen_herd_size.x[i]) < as.character(sif$Hempsen_herd_size.y[i]), 
+    paste(sif$Hempsen_herd_size.x[i], sif$Hempsen_herd_size.y[i], sep="_"),
+    paste(sif$Hempsen_herd_size.y[i], sif$Hempsen_herd_size.x[i], sep="_")
+  )
+}
+
+# now make them all factors
+sif$activity.combined <- as.factor(sif$activity.combined)
+sif$sociality.combined <- as.factor(sif$sociality.combined)
+sif$masscategory.combined <- as.factor(sif$masscategory.combined)
+sif$diet.combined <- as.factor(sif$diet.combined)
+sif$hempsen.combined <- as.factor(sif$hempsen.combined)
+sif$order.combined <- as.factor(sif$order.combined)
+sif$family.combined <- as.factor(sif$family.combined)
+sif$diet2.combined <- as.factor(sif$diet2.combined)
+sif$waterdep.combined <- as.factor(sif$waterdep.combined)
+sif$herdsize.combined <- as.factor(sif$herdsize.combined)
+
+## FOR LONG
+
+for (i in 1:nrow(sif.long)) {
+  sif.long$activity.combined[i] = ifelse(as.character(sif.long$Activity_pattern.x[i]) < as.character(sif.long$Activity_pattern.y[i]), 
+    paste(sif.long$Activity_pattern.x[i], sif.long$Activity_pattern.y[i], sep="_"),
+    paste(sif.long$Activity_pattern.y[i], sif.long$Activity_pattern.x[i], sep="_")
+  )
+
+  sif.long$sociality.combined[i] = ifelse(as.character(sif.long$Sociality.x[i]) < as.character(sif.long$Sociality.y[i]), 
+    paste(sif.long$Sociality.x[i], sif.long$Sociality.y[i], sep="_"),
+    paste(sif.long$Sociality.y[i], sif.long$Sociality.x[i], sep="_")
+  )
+
+  sif.long$masscategory.combined[i] = ifelse(as.character(sif.long$Mass_category.x[i]) < as.character(sif.long$Mass_category.y[i]), 
+    paste(sif.long$Mass_category.x[i], sif.long$Mass_category.y[i], sep="_"),
+    paste(sif.long$Mass_category.y[i], sif.long$Mass_category.x[i], sep="_")
+  )
+
+  sif.long$diet.combined[i] = ifelse(as.character(sif.long$Diet.x[i]) < as.character(sif.long$Diet.y[i]), 
+    paste(sif.long$Diet.x[i], sif.long$Diet.y[i], sep="_"),
+    paste(sif.long$Diet.y[i], sif.long$Diet.x[i], sep="_")
+  )
+
+  sif.long$hempsen.combined[i] = ifelse(as.character(sif.long$Hempsen_category.x[i]) < as.character(sif.long$Hempsen_category.y[i]), 
+    paste(sif.long$Hempsen_category.x[i], sif.long$Hempsen_category.y[i], sep="_"),
+    paste(sif.long$Hempsen_category.y[i], sif.long$Hempsen_category.x[i], sep="_")
+  )
+
+  sif.long$order.combined[i] = ifelse(as.character(sif.long$Order.x[i]) < as.character(sif.long$Order.y[i]), 
+    paste(sif.long$Order.x[i], sif.long$Order.y[i], sep="_"),
+    paste(sif.long$Order.y[i], sif.long$Order.x[i], sep="_")
+  )
+
+  sif.long$family.combined[i] = ifelse(as.character(sif.long$Family.x[i]) < as.character(sif.long$Family.y[i]), 
+    paste(sif.long$Family.x[i], sif.long$Family.y[i], sep="_"),
+    paste(sif.long$Family.y[i], sif.long$Family.x[i], sep="_")
+  )
+  
+  sif.long$diet2.combined[i] = ifelse(as.character(sif.long$Hempsen_diet2.x[i]) < as.character(sif.long$Hempsen_diet2.y[i]), 
+    paste(sif.long$Hempsen_diet2.x[i], sif.long$Hempsen_diet2.y[i], sep="_"),
+    paste(sif.long$Hempsen_diet2.y[i], sif.long$Hempsen_diet2.x[i], sep="_")
+  )
+
+  sif.long$waterdep.combined[i] = ifelse(as.character(sif.long$Hempsen_water_dependence.x[i]) < as.character(sif.long$Hempsen_water_dependence.y[i]), 
+    paste(sif.long$Hempsen_water_dependence.x[i], sif.long$Hempsen_water_dependence.y[i], sep="_"),
+    paste(sif.long$Hempsen_water_dependence.y[i], sif.long$Hempsen_water_dependence.x[i], sep="_")
+  )
+
+  sif.long$herdsize.combined[i] = ifelse(as.character(sif.long$Hempsen_herd_size.x[i]) < as.character(sif.long$Hempsen_herd_size.y[i]), 
+    paste(sif.long$Hempsen_herd_size.x[i], sif.long$Hempsen_herd_size.y[i], sep="_"),
+    paste(sif.long$Hempsen_herd_size.y[i], sif.long$Hempsen_herd_size.x[i], sep="_")
+  )
+}
+
+# now make them all factors
+sif.long$activity.combined <- as.factor(sif.long$activity.combined)
+sif.long$sociality.combined <- as.factor(sif.long$sociality.combined)
+sif.long$masscategory.combined <- as.factor(sif.long$masscategory.combined)
+sif.long$diet.combined <- as.factor(sif.long$diet.combined)
+sif.long$hempsen.combined <- as.factor(sif.long$hempsen.combined)
+sif.long$order.combined <- as.factor(sif.long$order.combined)
+sif.long$family.combined <- as.factor(sif.long$family.combined)
+sif.long$diet2.combined.combined <- as.factor(sif.long$diet2.combined)
+sif.long$waterdep.combined <- as.factor(sif.long$waterdep.combined)
+sif.long$herdsize.combined <- as.factor(sif.long$herdsize.combined)
+```
+
+#### Now, explore effects of traits on interactions (looking at one trait at a time).
+
+SIF
+```{r trait SIF explore }
+## explore relationships - match
+ggplot(sif.long, aes(x = activity.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = sociality.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = hempsen.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet2.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = waterdep.match, y = SIF, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = herdsize.match, y = SIF, fill = Season)) + 
+  geom_boxplot() 
+
+## explore relationships - combined
+ggplot(sif.long, aes(x = activity.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = sociality.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = hempsen.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet2.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = waterdep.combined, y = SIF, fill = Season)) + 
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = herdsize.combined, y = SIF, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+RAI
+```{r trait RAI explore }
+## explore relationships - match
+ggplot(sif.long, aes(x = activity.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = sociality.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = hempsen.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet2.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = waterdep.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = herdsize.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() 
+
+## explore relationships - combined
+ggplot(sif.long, aes(x = activity.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = sociality.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = hempsen.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet2.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = waterdep.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = herdsize.combined, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+Temporal
+```{r trait temporal explore }
+## explore relationships - match
+ggplot(sif.long, aes(x = activity.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = sociality.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = hempsen.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = diet2.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = waterdep.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot()
+
+ggplot(sif.long, aes(x = herdsize.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot() 
+
+## explore relationships - combined
+ggplot(sif.long, aes(x = activity.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = sociality.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = hempsen.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = diet2.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = waterdep.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(sif.long, aes(x = herdsize.combined, y = Dhat1, fill = Season)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### Overlap by traits
+
+```{r overlap by traits}
+# RAI by Hempsen category
+pdf('Figures/Overlap/RAI_Hempsenmatch.pdf')
+ggplot(sif.long, aes(x = hempsen.match, y = RAI.correlation, fill = Season)) + 
+  geom_boxplot() + 
+  ggtitle("Spatial Activity (RAI) Correlation")
+dev.off()
+
+ggplot(sif.long, aes(x = Season, y = RAI.correlation, fill = hempsen.match)) + 
+  geom_boxplot() + 
+#  geom_jitter() +
+  ggtitle("Spatial Activity (RAI) Correlation")
+
+sif.long.dry.same <- sif.long[sif.long$Season == 'Dry' & sif.long$hempsen.match == 'same',]
+sif.long.dry.diff <- sif.long[sif.long$Season == 'Dry' & sif.long$hempsen.match == 'different',]
+sif.long.wet.same <- sif.long[sif.long$Season == 'Wet' & sif.long$hempsen.match == 'same',]
+sif.long.wet.diff <- sif.long[sif.long$Season == 'Wet' & sif.long$hempsen.match == 'different',]
+
+# no significant difference in RAI correlation between hempsen match (in dry or wet)
+t.test(sif.long.dry.same$RAI.correlation, sif.long.dry.diff$RAI.correlation)
+t.test(sif.long.wet.same$RAI.correlation, sif.long.wet.diff$RAI.correlation)
+
+# nor between dry and wet (for same & different)
+t.test(sif.long.dry.same$RAI.correlation, sif.long.wet.same$RAI.correlation)
+t.test(sif.long.wet.same$RAI.correlation, sif.long.wet.diff$RAI.correlation)
+
+# throw both interacting in a model; no effect
+fit <- lm(RAI.correlation ~ Season * hempsen.match, data = sif.long)
+summary(fit)
+
+
+pdf('Figures/Overlap/SIF_Hempsenmatch.pdf')
+ggplot(sif.long, aes(x = hempsen.match, y = SIF.ln, fill = Season)) + 
+  geom_boxplot() + 
+  ggtitle("Spatial Occupancy (SIF) Correlation")
+dev.off()
+
+pdf('Figures/Overlap/Temporal_Hempsenmatch.pdf')
+ggplot(sif.long, aes(x = hempsen.match, y = Dhat1, fill = Season)) + 
+  geom_boxplot() + 
+  ggtitle("Temporal Correlation")
+dev.off()
+
+#pdf('Figures/Overlap/Diet_Hempsenmatch.pdf')
+ggplot(sif.long, aes(x = hempsen.match, y = Pianka_dietary_overlap, fill = hempsen.match)) + 
+  geom_boxplot() + 
+  ylab("RAI Correlation") +
+  ggtitle("Dietary Overlap")
+#dev.off()
+```
+
+
+

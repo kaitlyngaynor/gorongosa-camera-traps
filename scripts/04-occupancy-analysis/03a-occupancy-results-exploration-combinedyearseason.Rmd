@@ -1,0 +1,254 @@
+---
+title: "Gorongosa_occupancy_results_exploration"
+author: "Kaitlyn Gaynor"
+date: "10/25/2018"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+### Seasonal effects
+
+Exploring the output of the occupancy models, graphically. Start by setting the working directory, installing libraries, and importing data files.
+```{r setup}
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+library(ggplot2)
+library(plyr)
+library(rgdal)
+library(broom)
+library(raster)
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+
+sppcov <- read.csv("Results/Occupancy/Combinedyearseason_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+grpcov <- read.csv("Results/Occupancy/Combinedyearseason_group.csv")
+
+# join the model output and trait information
+sppcov <- join(sppcov, Spp, by = "SppCode")
+```
+
+Plot all covariates for all species, with 95% confidence intervals.
+```{r plot all}
+# by species
+ggplot(sppcov, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  facet_wrap(~ Factor)
+
+# by group
+ggplot(grpcov, aes(x=Group, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  facet_wrap(~ Factor)
+
+
+# ONLY season
+# first reorder by factor value
+sppcov.season <- sppcov[sppcov$Factor == "Season",]
+sppcov.season$CommName <- reorder(sppcov.season$CommName, sppcov.season$Mean)
+ggplot(sppcov.season, aes(x=CommName, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed")
+```
+
+This is weird and opposite predictions; would expect warthog, oribi, kudu, reedbuck, waterbuck to be HIGHER in wet season, but they are LOWER in wet season.
+
+### Overall patterns of occupancy
+
+```{r occupancy patterns}
+occupancy.prob <- read.csv("Results/Occupancy/Combinedyearseason_alphaspsi()p().csv")
+names <- row.names(occupancy.prob)
+occupancy.prob <- cbind(names, occupancy.prob)
+row.names(occupancy.prob) <- NULL
+
+library(data.table)
+occupancy.probCI <- read.csv("Results/Occupancy/Combinedyearseason_alphaCI.psi()p().csv")
+occupancy.probCI <- transpose(occupancy.probCI)
+
+occupancy.prob <- cbind(occupancy.prob, occupancy.probCI)
+names(occupancy.prob) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+
+occupancy.prob <- join(occupancy.prob, Spp)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$PsiMean)
+
+## barplot
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, colour=Hempsen_category)) + 
+  geom_errorbar(aes(ymin=PsiLCI, ymax=PsiUCI, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1))
+
+```
+
+HMMM, this is clearly wrong—hartebeest are not the most common. Waterbuck should be the 0.99 species, I'm sure. What's up?????? Goes back to occupancy output.
+Actually, goes back even further. The detection matrices that were brought in are wrong, and the MASTER detection matrix is even wrong.....
+
+
+### Patterns of species richness
+
+Set up, import data.
+```{r richness}
+richness <- read.csv("Results/Occupancy/Combinedyearseason_spprich.csv")
+
+# bring in site covariates
+cameras <- read.csv("Data/cam_metadata_norm_031519.csv")
+
+# reorganize so it works with the duplicated cameras
+cameras.dry1 <- cameras
+cameras.wet1 <- cameras
+cameras.dry2 <- cameras
+cameras.wet2 <- cameras
+cameras.dry1$StudySite <- paste(cameras.dry1$StudySite, "_D1", sep = "")
+cameras.wet1$StudySite <- paste(cameras.wet1$StudySite, "_W1", sep = "")
+cameras.dry2$StudySite <- paste(cameras.dry2$StudySite, "_D2", sep = "")
+cameras.wet2$StudySite <- paste(cameras.wet2$StudySite, "_W2", sep = "")
+cameras <- rbind(cameras.dry1, cameras.wet1, cameras.dry2, cameras.wet2)
+
+richness <- join(richness, cameras)
+```
+
+
+Species richness across habitats.
+```{r richness and habitat}
+# Richness and habitat
+ggplot(richness, aes(x = habitat.type, y = Mean)) + 
+  geom_boxplot()
+
+ggplot(richness, aes(x = habitat.number, y = Mean)) + 
+  geom_jitter()
+```
+
+Species richness increases with distance to lake.
+```{r richness and lake}
+# Richness and distance to lake by season
+ggplot(richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+Species richness increases w/ distance to road.
+```{r richness and road}
+# Richness and distance to road by season
+ggplot(richness, aes(x = road.distance, y = Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+No effect of tree cover on species richness.
+```{r richness and tree}
+# Richness and tree by season
+ggplot(richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+No effect of fire frequency on species richness (weakly positive?)
+```{r richness and fire}
+# Richness and tree by season
+ggplot(richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+No effect of poaching.
+```{r richness and poaching}
+richness$poaching.high <- as.factor(richness$poaching.high)
+levels(richness$poaching.high) <- c("Low Poaching", "High Poaching")
+# Richness and poaching by season
+ggplot(richness, aes(x = poaching.high, y = Mean)) + 
+  geom_boxplot()
+```
+
+
+
+
+
+
+Figure out how to map results? From Lindsey:
+You can then back-transform occupancy values for each species in each grid cell. To get species richness you are correct, you'd sum the species-specific occupancy values. I think the back-transform equation is (you have to back transform b/c is logit(psi) = blah blah) the following, but double check... 
+[exp(alpha + mbeta1*cov1 + mbeta2*cov2 + sbeta1*cov1 + sbeta2*cov2)]
+1+[exp(alpha + mbeta1*cov1 + mbeta2*cov2 + sbeta1*cov1 + sbeta2*cov2)]
+where alpha, mbeta, and sbeta values are the output you get in that out.summary file (alpha and sbeta values are species-specific) and cov1 & cov2 values are the grid-cell specific covariate values.
+
+Write a function to calculate this for each species and save as new raster!
+```{r raster calculate}
+
+```
+
+
+Read in the coarse rasters (for model projection) and stack together. I found this code that allows you to load multiple rasters in at the same time and automatically stack them: https://gis.stackexchange.com/questions/136231/importing-several-geotiff-files-into-r I haven't actually run this, though.
+(However, I'm getting an error that I cannot create a raster file. I don't really have patience to troubleshoot so am importing them separately.)
+```{r coarse raster stack}
+# coarse.stack <- do.call(stack, lapply(list.files(path = "./GIS/Rasters for stacking/Normalized and masked and coarse rasters"), raster))
+
+boundary.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/boundary.dist.norm.coarse.tif")
+fire.crop.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire.crop.res.norm.coarse.tif")
+fire2015.crop.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2015.crop.res.norm.coarse.tif")
+fire2016.crop.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2015.crop.res.norm.coarse.tif")
+fire2017.crop.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2015.crop.res.norm.coarse.tif")
+pans.crop.100m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.100m.res.norm.coarse.tif")
+pans.crop.250m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.250m.res.norm.coarse.tif")
+pans.crop.500m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.500m.res.norm.coarse.tif")
+pans.crop.1km.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.1km.res.norm.coarse.tif")
+pans.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.dist.norm.coarse.tif")
+poaching.all.raster.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/poaching.all.raster.res.norm.coarse.tif")
+poaching.high.raster.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/poaching.high.raster.res.norm.coarse.tif")
+rivers.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/rivers.dist.norm.coarse.tif")
+road.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/road.dist.norm.coarse.tif")
+roadsmajor.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/roadsmajor.dist.norm.coarse.tif")
+termites.crop.100m.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.100m.norm.coarse.tif")
+termites.crop.250m.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.250m.norm.coarse.tif")
+termites.crop.500m.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.500m.norm.coarse.tif")
+termites.crop.1km.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.1km.norm.coarse.tif")
+termites.crop.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.norm.coarse.tif")
+tree.crop.100m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.100m.res.norm.coarse.tif")
+tree.crop.250m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.250m.res.norm.coarse.tif")
+tree.crop.500m.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.500m.res.norm.coarse.tif")
+tree.crop.1km.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.1km.res.norm.coarse.tif")
+tree.crop.res.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.res.norm.coarse.tif")
+urema.dist.norm.coarse <- raster("GIS/Rasters for stacking/Normalized and masked and coarse rasters/urema.dist.norm.coarse.tif")
+lion.wet <- raster("GIS/Spatial data/Lion_Isopleths/all.wet.tif")
+lion.dry <- raster("GIS/Spatial data/Lion_Isopleths/all.latedry.tif")
+
+raster.stack <- raster::stack(boundary.dist.norm.coarse, fire.crop.res.norm.coarse,
+                              pans.crop.100m.res.norm.coarse, pans.crop.250m.res.norm.coarse, pans.crop.500m.res.norm.coarse, 
+                              pans.crop.1km.res.norm.coarse, pans.dist.norm.coarse, poaching.all.raster.res.norm.coarse, 
+                              poaching.high.raster.res.norm.coarse, rivers.dist.norm.coarse, road.dist.norm.coarse, roadsmajor.dist.norm.coarse,
+                              termites.crop.100m.norm.coarse, termites.crop.250m.norm.coarse, termites.crop.500m.norm.coarse,
+                              termites.crop.1km.norm.coarse, termites.crop.norm.coarse, tree.crop.100m.res.norm.coarse, 
+                              tree.crop.250m.res.norm.coarse, tree.crop.500m.res.norm.coarse, tree.crop.1km.res.norm.coarse, tree.crop.res.norm.coarse,
+                              urema.dist.norm.coarse, lion.wet, lion.dry)
+
+# make sure the names match the names of the covariates in the output; they probably won't, and will need changing. Also this order will have to change to match the order in which the rasters are read? maybe? (not sure how period is incorporated into alphabetical order) and maybe there are some rasters in the folder that are not listed here
+names(raster.stack) <- c("boundary.distance", 
+                         "fire.interval", 
+                         "pans.100m", "pans.250m", "pans.500m", "pans.1km", "pan.distance", 
+                         "poaching.all", "poaching.high",
+                         "river.distance", 
+                         "road.distance", "road.major.distance", 
+                         "termites.100m", "termites.250m", "termites.500m", "termites.1km", "termites",
+                         "tree.100m", "tree.250m", "tree.500m", "tree.1km", "tree", 
+                         "urema.distance", "lion.wet", "lion.dry")
+```

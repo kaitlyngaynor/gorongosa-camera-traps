@@ -1,0 +1,1232 @@
+---
+title: "Gorongosa GIS"
+author: "Kaitlyn Gaynor"
+date: "9/3/2018"
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+## Getting started
+
+Set working directory, load libraries.
+```{r setup}
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+library(sp) # create and reproject spatial objects
+library(raster) # analysis with raster data
+library(rgdal) # for reading GIS layers
+library(ggplot2) # plotting!
+library(rgeos) # some spatial functions including gDistance (distance between geometries)
+library(tidyverse) # general tidy coding
+library(RStoolbox) # for normalizing rasters
+```
+
+Import and clean up the data
+
+#### Convert camera location GPS points to SpatialPoints class and reproject in UTM:
+```{r reproject cameras}
+data <- read.csv("GIS/Camera layers/Camera_coordinates.csv", header = T)  ## csv with camera coordinates
+
+cameras <- data[, c('Longitude', 'Latitude')]
+cameras.sp <- SpatialPoints(cameras, proj4string=CRS("+proj=longlat +ellps=WGS84")) # Data in degrees
+camerasUTM.sp <- spTransform(cameras.sp, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # Data in UTM (meters)
+cameras.UTM <- coordinates(camerasUTM.sp)
+
+data$Longitude.UTM <-cameras.UTM[,1] # join with original dataset
+data$Latitude.UTM <-cameras.UTM[,2]
+```
+
+#### Import vector layers (lines and polygons) into R using rgdal.
+```{r import GIS}
+## Park boundary
+boundary.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "gnp_boundary_west_straight_latlong") # use "." if in working directory, otherwise enter file path
+boundary.lyr.UTM <- spTransform(boundary.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
+
+## Roads
+# roads.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/roads_curr_aug2015.kml", "roads_curr_aug2015") # this is a KML, so slightly different format - but I've edited roads since, so ignore this one
+roads.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "Roads_all")
+roads.lyr.UTM <- spTransform(roads.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
+plot(roads.lyr.UTM)
+
+roadsmajor.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "Roads_major")
+roadsmajor.lyr.UTM <- spTransform(roadsmajor.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
+plot(roadsmajor.lyr.UTM)
+
+## Lake Urema
+urema.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "lake_urema_latlong") # use "." if in working directory, otherwise enter file path
+urema.lyr.UTM <- spTransform(urema.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
+
+## Rivers
+rivers.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "gnp_main_rivers_latlong")
+rivers.lyr.UTM <- spTransform(rivers.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+## Pans
+pans.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan", "PanOutline_130429_2")
+pans.lyr.UTM <- spTransform(pans.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+## Conservative Pans (no channels and floodplain)
+panscon.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan_conservative", "PanOutline_130429_2")
+panscon.lyr.UTM <- spTransform(panscon.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+## Only large pans >1km2 (no channels and floodplain)
+panslarge.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan_conservative", "Pan_largerthan1km2")
+panslarge.lyr.UTM <- spTransform(panslarge.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+## only take pans outside of floodplain
+# large
+landscapes <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Data from Marc", "gnp_landscapes_park&buffer_latlong") %>% 
+  spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+floodplain <- landscapes[landscapes@data$NAME == "Rift Valley Riverine & Floodplain",]
+panslarge.offflood <- gDifference(panslarge.lyr.UTM, floodplain)
+# all
+pans.offflood <- gDifference(pans.lyr.UTM, floodplain)
+
+## Settlements
+settlements.lyr.UTM <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Settlements", "settlements_all_proj") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+# and get chitengo in there
+chitengo.lyr.UTM <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Settlements", "chitengo_latlong") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+settlements.lyr.UTM <- bind(settlements.lyr.UTM, chitengo.lyr.UTM)
+
+## Poaching
+poaching.all.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "All_Poaching")
+poaching.all.lyr.UTM <- spTransform(poaching.all.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+poaching.high.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "HIGHPoaching")
+poaching.high.lyr.UTM <- spTransform(poaching.high.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+poaching.low.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "Low_Poaching")
+poaching.low.lyr.UTM <- spTransform(poaching.low.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+
+## quick poaching map
+plot(boundary.lyr.UTM)
+lines(poaching.all.lyr.UTM, col = "blue", cex = 2)
+lines(poaching.high.lyr.UTM, col = "red", cex = 2)
+```
+
+#### Import raster layers into R using raster.
+```{r import raster layers}
+GDALinfo("GIS/Spatial data/Tree cover/BinMosFilterFinal.tif") # get information about raster data before importing
+tree <- raster("GIS/Spatial data/Tree cover/BinMosFilterFinal.tif")
+
+# Hansen tree layer
+tree.hansen <- raster("GIS/Spatial data/Tree cover/Hansen_10S_030E_treecover2010_v3.tif") 
+tree.hansen.UTM <- projectRaster(tree.hansen, crs = CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+#tree.hansen.mask <- mask(tree.hansen.UTM, boundary.lyr.UTM) # crop to park boundary before working with it, given its size
+
+GDALinfo("GIS/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif") # get information about raster data before importing
+termites <- raster("GIS/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif")
+
+## for some reason, the original fire layer didn't load, so I brought it into Arc, exported, and then it works fine
+## However, this one is a few years outdated, so won't end up using this after all
+GDALinfo("GIS/Spatial data/Fire2/tif1.tif")
+fire.old <- raster("GIS/Spatial data/Fire2/tif1.tif")
+
+```
+
+
+9/12/18: Explore this 2016 fire layer Marc sent
+```{r fire exploration}
+## Fire layer from 2016
+fire2016.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Fire2", "gnp_fire_2016") # use "." if in working directory, otherwise enter file path
+fire2016.lyr.UTM <- spTransform(fire2016.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
+plot(fire2016.lyr.UTM)
+```
+
+9/21/18: Explore the new 2018 fire history layer (and annual layers) Josh sent. They were in Lat/Long, rather than UTM, which was causing issues when cropping and stacking. I tried to figure this out with projectRaster, but was running into inexplicable errors, and decided it was just more expedient to project each layer in Arc and re-export. The tif files for 2014-2018 are in the same Fire3 folder, with _utm appended to the end of the file names.
+```{r fire exploration 2}
+# burn history
+GDALinfo("GIS/Spatial data/Fire3/times_int1.tif")
+fire <- raster("GIS/Spatial data/Fire2/tif1.tif")
+plot(fire)
+
+# 2015 fire history
+# GDALinfo("GIS/Spatial data/Fire3/last_2015_int1.tif")
+# fire2015 <- raster("GIS/Spatial data/Fire3/last_2015_int1.tif")
+# plot(fire2015)
+# crs(fire2015) # coordinate system is lat/long, this won't work
+# fire2015.proj <- projectRaster(fire2015, crs=termites) # get into same projection (UTM) as others, it's currently lat/long
+
+# 2014 fire history
+GDALinfo("GIS/Spatial data/Fire3/last_2014_int1_utm.tif")
+fire2014 <- raster("GIS/Spatial data/Fire3/last_2014_int1_utm.tif")
+plot(fire2014)
+
+# 2015 fire history
+GDALinfo("GIS/Spatial data/Fire3/last_2015_int1_utm.tif")
+fire2015 <- raster("GIS/Spatial data/Fire3/last_2015_int1_utm.tif")
+plot(fire2015)
+
+# 2016 fire history
+GDALinfo("GIS/Spatial data/Fire3/last_2016_int1_utm.tif")
+fire2016 <- raster("GIS/Spatial data/Fire3/last_2016_int1_utm.tif")
+plot(fire2016)
+
+# 2017 fire history
+GDALinfo("GIS/Spatial data/Fire3/last_2017_int1_utm.tif")
+fire2017 <- raster("GIS/Spatial data/Fire3/last_2017_int1_utm.tif")
+plot(fire2017)
+
+# 2018 fire history
+GDALinfo("GIS/Spatial data/Fire3/last_2018_int1_utm.tif")
+fire2018 <- raster("GIS/Spatial data/Fire3/last_2018_int1_utm.tif")
+plot(fire2018)
+```
+
+We want to crop the raster layers to the study area (where the camera traps are located) so we don't have huge data files. 
+```{r crop}
+tree.crop <- raster::crop(tree, extent(c(635000, 665000, 7890000, 7915000))) # x min, x max, y min, y max - from known locations of cameras
+tree.hansen.crop <- raster::crop(tree.hansen.UTM, extent(c(635000, 665000, 7890000, 7915000)))
+termites.crop <- raster::crop(termites, extent(c(635000, 665000, 7890000, 7915000))) 
+fire.crop <- raster::crop(fire, extent(c(635000, 665000, 7890000, 7915000))) 
+
+fire2014.crop <- raster::crop(fire2014, extent(c(635000, 665000, 7890000, 7915000)))
+fire2015.crop <- raster::crop(fire2015, extent(c(635000, 665000, 7890000, 7915000)))
+fire2016.crop <- raster::crop(fire2016, extent(c(635000, 665000, 7890000, 7915000)))
+fire2017.crop <- raster::crop(fire2017, extent(c(635000, 665000, 7890000, 7915000)))
+fire2018.crop <- raster::crop(fire2018, extent(c(635000, 665000, 7890000, 7915000)))
+```
+
+However, the tree.crop layer is too small (because the input layer doesn't cover the entire study area that we want to crop), so we have to set the extent again to make sure it matches the termites.crop layer. 
+
+The resolution is also slightly different, at 1.976814 x 1.97614 for the termite layer and 1.976814 x 1.967725 for the tree crop layer, so we have to resample one (I'm choosing trees). Similarly, we have to resample the fire layer (at 500x500 m, downsampling). Bilinear interpolation uses weighed average of four nearest neighbor cells (versus a nearest neighbor method, which is blockier.) It's inventing (interpolating) data, though, so interpret with caution.
+
+This is important down the line when we create a raster stack. When I try to stack rasters of different resolutions, I am getting Error in compareRaster(x) : different extent.  
+```{r correct extent and resolution}
+extent(tree.crop) <- termites.crop # change extent
+# change resolution
+tree.crop.res <- raster::resample(tree.crop, termites.crop, method = 'bilinear') # resample tree.crop so it exactly matches termites.crop
+writeRaster(tree.crop.res, 'tree.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.hansen.crop.res <- raster::resample(tree.hansen.crop, termites.crop, method = 'bilinear')
+writeRaster(tree.hansen.crop.res, 'tree.hansen.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+
+# while we're at it, export cropped termite layer for later use
+writeRaster(termites.crop, 'termites.crop.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire.crop.res <- raster::resample(fire.crop, termites.crop, method = 'bilinear') # resample fire.crop (and other fire layers) at finer resolution (2x2 meters, same as termites)
+fire2014.crop.res <- raster::resample(fire2014.crop, termites.crop, method = 'bilinear')
+fire2015.crop.res <- raster::resample(fire2015.crop, termites.crop, method = 'bilinear')
+fire2016.crop.res <- raster::resample(fire2016.crop, termites.crop, method = 'bilinear')
+fire2017.crop.res <- raster::resample(fire2017.crop, termites.crop, method = 'bilinear')
+fire2018.crop.res <- raster::resample(fire2018.crop, termites.crop, method = 'bilinear')
+
+## export these as .tif files for later
+writeRaster(fire.crop.res, 'fire.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2014.crop.res, 'fire2014.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2015.crop.res, 'fire2015.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2016.crop.res, 'fire2016.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2017.crop.res, 'fire2017.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2018.crop.res, 'fire2018.crop.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+```
+
+We also want to convert the pan polygon layer to a raster for later analysis. Setting background = 0 makes the value of the cells without any pans =0 (rather than NA, which is the default). Setting field = 1 makes the value of cells with pans equal to 1. If you don't specify the field, it uses the attribute index (ordered numbers from 1 up to the max number of features).
+```{r pan to raster}
+pans.raster <- rasterize(pans.lyr.UTM, termites.crop, field = 1, background = 0)
+plot(pans.raster)
+pans.raster.res <- raster::resample(pans.raster, termites.crop, method = 'bilinear')
+writeRaster(pans.raster, 'pans.raster.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+panscon.raster <- rasterize(panscon.lyr.UTM, termites.crop, field = 1, background = 0)
+#plot(panscon.raster)
+writeRaster(panscon.raster, 'panscon.raster.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+panslarge.offflood.raster <- rasterize(panslarge.offflood, termites.crop, field = 1, background = 0)
+writeRaster(panslarge.offflood.raster, 'panslarge.offflood.raster.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+pans.offflood.raster <- rasterize(pans.offflood, termites.crop, field = 1, background = 0)
+writeRaster(pans.offflood.raster, 'pans.offflood.raster', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+And let's do the same for the poaching layers.
+```{r poaching to raster}
+poaching.all.raster <- rasterize(poaching.all.lyr.UTM, tree.crop.res, field = 1, background = 0)
+plot(poaching.all.raster)
+poaching.all.raster.res <- raster::resample(poaching.all.raster, termites.crop, method = 'bilinear')
+writeRaster(poaching.all.raster.res, 'poaching.all.raster.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+poaching.high.raster <- rasterize(poaching.high.lyr.UTM, tree.crop.res, field = 1, background = 0)
+plot(poaching.high.raster)
+poaching.high.raster.res <- raster::resample(poaching.high.raster, termites.crop, method = 'bilinear')
+writeRaster(poaching.high.raster.res, 'poaching.high.raster.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+poaching.high.raster2 <- rasterize(poaching.high.lyr.UTM, tree.crop.res, field = 2, background = 0)
+plot(poaching.high.raster2)
+poaching.high.raster2 <- raster::resample(poaching.high.raster2, termites.crop, method = 'bilinear')
+writeRaster(poaching.high.raster2, 'poaching.high.raster.res2.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+poaching.low.raster <- rasterize(poaching.low.lyr.UTM, tree.crop.res, field = 1, background = 0)
+plot(poaching.low.raster)
+poaching.low.raster.res <- raster::resample(poaching.low.raster, termites.crop, method = 'bilinear')
+writeRaster(poaching.low.raster.res, 'poaching.low.raster.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+poaching.3levels <- poaching.low.raster + poaching.high.raster2
+plot(poaching.3levels)
+```
+
+#### Explore the data
+
+Explore the raster data.
+```{r raster explore}
+## exploring tree layer
+tree  # reports min and max values but no other statistics
+# summary(tree)  # can calculate summary stats, but takes a random sample of 10,000 cells and calculates from that (don't run, takes too long)
+# summary(tree, maxsamp = ncell(tree))  # a workaround (also takes a while)
+minValue(tree) # min value is 0 (no tree/termite)
+minValue(termites)
+maxValue(tree) # max value is 1 (tree/termite)
+maxValue(termites)
+
+minValue(fire)
+maxValue(fire) # fire max value is 16 (fire frequency since 2000)
+
+nlayers(tree) 
+nlayers(termites)
+nlayers(fire)
+# have just 1 layer - can also have multi-band rasters. By default, raster() only imports first band in a raster regardless of how many bands it has
+
+## determine spatial resolution of raster layers
+res(tree) # essentially 2x2 meter (1.976814 x 1.976814)
+res(termites) # essentially 2x2 meter (1.976814 x 1.976814)
+res(fire) # essentially 500x500 meter (478.6804 x 478.6084)
+
+crs(tree) 
+crs(termites)
+# +proj=utm +zone=36 +south +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0
+## good, that's what we want to see! otherwise, we'd have to project.
+
+## convert to dataframe for visualization in ggplot2
+# tree.df <- as.data.frame(tree, xy = TRUE) ## taking a long time; skip
+```
+
+Let's plot these layers now!
+Hmm. River layer is not showing up. It plots on its own, but not with other layers, even though the projections are the same.
+```{r plotting}
+## entire Gorongosa National Park
+plot(boundary.lyr.UTM, axes=T, ylim=c(7870000, 7970000), xlim=c(620000,700000)) # plots boundary layer
+points(cameras.UTM, pch=20, cex=0.6, col="red") # adds camera points
+lines(roads.lyr.UTM, col="gray")
+lines(rivers.lyr.UTM, col="blue")
+lines(urema.lyr.UTM, col="blue") ## not sure how to plot as polygon???
+
+## zoom in on camera area
+plot(boundary.lyr.UTM, axes=T, ylim=c(7890000, 7915000), xlim=c(635000,665000), col="gray")
+points(cameras.UTM, pch=20, cex=0.6, col="red")
+lines(roads.lyr.UTM, col="black")
+lines(rivers.lyr.UTM, col="blue")
+lines(urema.lyr.UTM, col="blue") ## not sure how to plot as polygon???
+
+## plot woody cover layer - need to get one with complete extent from Josh
+plot(tree.crop)
+lines(boundary.lyr.UTM) # adds park boundary
+points(cameras.UTM, pch=20, cex=1, col="blue") # adds camera points
+
+## plot termite layer
+plot(termites.crop)
+lines(boundary.lyr.UTM) # adds park boundary
+points(cameras.UTM, pch=20, cex=1, col="blue") # adds camera points
+
+## plot fire
+plot(fire.crop)
+lines(boundary.lyr.UTM)
+points(cameras.UTM, pch=20, cex=1, col="blue") # adds camera points
+
+## Google earth imagery - for some reason I'm in the ocean maybe???
+require(dismo)
+GoogleMap <- gmap(extent(c(635000, 665000, 7890000, 7915000)), type="terrain") # Projects in UTM unless otherwise specified
+plot(GoogleMap, axes=T)
+
+```
+
+
+## Spatial analysis in R
+
+#### Raster with distances from each raster cell to points of interest.
+
+The distanceFromPoints function (in raster package) calculates distance from a set of points to all cells of a Raster object. It doesn't work for lines or polygons. Distance unit is in meters, unless otherwise defined by coordinate reference system. Raster template can take any of the spatial layers, but just needs template to give right resolution and extent (in this case, I used termites.crop)
+
+In the code below, I convert lines to points, and then use the distanceFromPoints function (though you lose information this way)
+```{r distance roads, eval = FALSE}
+roads.pts = as(roads.lyr.UTM, "SpatialPointsDataFrame")
+road.dist <- distanceFromPoints(termites.crop, roads.pts)
+plot(road.dist)
+
+writeRaster(road.dist, 'road.all.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+roadsmajor.pts = as(roadsmajor.lyr.UTM, "SpatialPointsDataFrame")
+roadsmajor.dist <- distanceFromPoints(termites.crop, roadsmajor.pts)
+plot(roadsmajor.dist)
+
+writeRaster(roadsmajor.dist, 'road.major.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+Distance to Lake Urema. The layer is a polygon, so I first converted it to lines. This ends up being distance from lake EDGE, so the points inside the lake are not 0, when in fact they should be. Probably not a huge issue but still not ideal. Would be better to find a way to calculate distance from polygon.
+```{r distance urema, eval = FALSE}
+urema.lines = as(urema.lyr.UTM, "SpatialLinesDataFrame") # first have to convert to lines
+urema.pts = as(urema.lines, "SpatialPointsDataFrame") # then to points (can't go right from polygon to points)
+urema.dist <- distanceFromPoints(termites.crop, urema.pts)
+plot(urema.dist)
+
+writeRaster(urema.dist, 'urema.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+Distance to settlement.
+```{r distance settlement, eval = FALSE}
+settlement.dist <- distanceFromPoints(termites.crop, settlements.lyr.UTM)
+plot(settlement.dist)
+
+writeRaster(settlement.dist, 'settlement.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+
+
+Distance to park boundary. The layer is a polygon, so I first converted it to lines.
+``` {r distance park, eval = FALSE}
+boundary.lines <- as(boundary.lyr.UTM, "SpatialLinesDataFrame")
+boundary.pts <- as(boundary.lines, "SpatialPointsDataFrame")
+boundary.dist <- distanceFromPoints(termites.crop, boundary.pts)
+plot(boundary.dist)
+
+## Trying with pipe operator to do in one operation (can't use with distanceFromPoints since it's not the first argument??)
+# boundary.dist <- distanceFromPoints(termites.crop, (boundary.lyr.UTM %>% as("SpatialLinesDataFrame") %>% as("SpatialPointsDataFrame")))
+
+writeRaster(boundary.dist, 'boundary.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+Distance to pans. The layer is a polygon, so I first converted it to lines.
+``` {r distance pans}
+pans.lines <- as(pans.lyr.UTM, "SpatialLinesDataFrame")
+pans.pts <- as(pans.lines, "SpatialPointsDataFrame")
+pans.dist <- distanceFromPoints(termites.crop, pans.pts)
+plot(pans.dist)
+
+writeRaster(pans.dist, 'pans.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+
+panscon.lines <- as(panscon.lyr.UTM, "SpatialLinesDataFrame")
+panscon.pts <- as(panscon.lines, "SpatialPointsDataFrame")
+panscon.dist <- distanceFromPoints(termites.crop, panscon.pts)
+plot(panscon.dist)
+
+writeRaster(panscon.dist, 'panscon.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+
+
+panslarge.lines <- as(panslarge.lyr.UTM, "SpatialLinesDataFrame")
+panslarge.pts <- as(panslarge.lines, "SpatialPointsDataFrame")
+panslarge.dist <- distanceFromPoints(termites.crop, panslarge.pts)
+plot(panslarge.dist)
+
+writeRaster(panslarge.dist, 'panslarge.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+
+Distance to river.
+```{r distance river, eval = FALSE}
+rivers.pts = as(rivers.lyr.UTM, "SpatialPointsDataFrame") # convert to points
+rivers.dist <- distanceFromPoints(termites.crop, rivers.pts)
+plot(rivers.dist)
+
+writeRaster(rivers.dist, 'rivers.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
+```
+Here is another method for calculating distances from lines. It runs really slowly so I've just been aborting it, but it's worth giving it a try. I got the method from here: https://gis.stackexchange.com/questions/226554/create-raster-in-r-distance-to-line-feature
+```{r distance rasters, eval = FALSE}
+road.dist2 = raster(extent(c(635000, 665000, 7890000, 7915000)), resolution=c(2,2)) # create raster with spatial extent of camera trap area and 2x2meter resolution
+roads.lyr.UTM.all <- gUnion(roads.lyr.UTM, roads.lyr.UTM) # merge the line features into one feature so it's less of a headache for analysis (doesn't take as much time to run)
+dd = gDistance(roads.lyr.UTM.all, as(road.dist,"SpatialPoints"), byid=TRUE) # calculate distance to road (creates a matrix with column for each feature - but if you merge all roads together, as in above line, there may only be one column?)
+road.dist[] = apply(dd,1,min) # to get distance to nearest feature, apply min over rows
+plot(r)
+```
+
+
+#### Raster of average values of other rasters
+These are functionally equivalent, but the first is faster to run:
+a <- focal(x, w=matrix(1/9, nc=3, nr=3)) [uses default function fun=sum]
+b <- focal(x, w=matrix(1, nc=3, nr=3), fun=mean)
+Here is a test case with fire, which is a much lower resolution and so runs a lot faster.
+```{r raster focal fire}
+## fire history - testing out with 3x3
+# fire.old.focal <- focal(fire.old, w = matrix(1/9, nc = 3, nr = 3))
+# plot(fire.old.focal)
+# plot(fire.crop)
+
+## with josh's layer - TO FINISH
+# fire.focal <- focal(fire.crop, w = matrix(1/9, nc = 3, nr = 3))
+# plot(fire.focal)
+# plot(fire.crop)
+```
+
+Here is some code for calculating tree cover and termites in neighborhood of cell. I had to run this on Zoe's computer because it was just taking ages and tying things up for me. The way that the areas are calculated is according to the following logic: we are looking 1000m on each side of a cell, and cells are 2meters, so the grid that we want to look at is 1001 x 1001 (has to be odd number since there is a center cell), so this is roughly 2km x 2km.
+```{r raster focal tree termite pan, eval = FALSE}
+## tree cover
+
+tree.crop.100m <- focal(tree.crop, w = matrix(1/1201, nc = 101, nr = 101))
+writeRaster(tree.crop.100m, 'tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+tree.crop.250m <- focal(tree.crop, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(tree.crop.250m, 'tree_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+tree.crop.500m <- focal(tree.crop, w = matrix(1/63001, nc = 501, nr = 501))
+writeRaster(tree.crop.500m, 'tree_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+tree.crop.1km <- focal(tree.crop, w = matrix(1/1002001, nc = 1001, nr = 1001))
+writeRaster(tree.crop.1km, 'tree_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+## hansen tree
+tree.hansen.crop.res <- raster("GIS/Rasters for stacking/tree.hansen.crop.res.tif")
+tree.hansen.250m <- focal(tree.hansen.crop.res, w = matrix(1/1002001, nc = 1001, nr = 1001))
+
+## termite mounds
+
+termites.crop.100m <- focal(termites.crop, w = matrix(1/1201, nc = 101, nr = 101))
+writeRaster(termites.crop.100m, 'termites_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+termites.crop.250m <- focal(termites.crop, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(termites.crop.250m, 'termites_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+termites.crop.500m <- focal(termites.crop, w = matrix(1/63001, nc = 501, nr = 501))
+writeRaster(termites.crop.500m, 'termites_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+termites.crop.1km <- focal(termites.crop, w = matrix(1/1002001, nc = 1001, nr = 1001))
+writeRaster(termites.crop.1km, 'termites_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+## pans
+pans.100m <- focal(pans.raster, w = matrix(1/1201, nc = 101, nr = 101))
+writeRaster(pans.100m, 'pans_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+pans.250m <- focal(pans.raster, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(pans.250m, 'pans_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+pans.500m <- focal(pans.raster, w = matrix(1/63001, nc = 501, nr = 501))
+writeRaster(pans.500m, 'pans_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+pans.1km <- focal(pans.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
+writeRaster(pans.1km, 'pans_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+
+# conservative pans (no channel, floodplain)
+
+panscon.100m <- focal(panscon.raster, w = matrix(1/1201, nc = 101, nr = 101))
+writeRaster(panscon.100m, 'GIS/Rasters for stacking/Focal rasters/panscon_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panscon.250m <- focal(panscon.raster, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(panscon.250m, 'GIS/Rasters for stacking/Focal rasters/panscon_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panscon.500m <- focal(panscon.raster, w = matrix(1/63001, nc = 501, nr = 501))
+writeRaster(panscon.500m, 'GIS/Rasters for stacking/Focal rasters/panscon_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panscon.1km <- focal(panscon.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
+writeRaster(panscon.1km, 'GIS/Rasters for stacking/Focal rasters/panscon_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+# large pans >1000m2 (no channel, floodplain)
+
+panslarge.raster <- raster("GIS/Spatial data/Pan_conservative/panslarge.raster.tif")
+
+panslarge.100m <- focal(panslarge.raster, w = matrix(1/1201, nc = 101, nr = 101))
+writeRaster(panslarge.100m, 'GIS/Rasters for stacking/Focal rasters/panslarge_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panslarge.250m <- focal(panslarge.raster, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(panslarge.250m, 'GIS/Rasters for stacking/Focal rasters/panslarge_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panslarge.500m <- focal(panslarge.raster, w = matrix(1/63001, nc = 501, nr = 501))
+writeRaster(panslarge.500m, 'GIS/Rasters for stacking/Focal rasters/panslarge_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+panslarge.1km <- focal(panslarge.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
+writeRaster(panslarge.1km, 'GIS/Rasters for stacking/Focal rasters/panslarge_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+# only pans off of floodplain
+panslarge.offflood.raster <- raster('GIS/Rasters for stacking/panslarge.offflood.raster.tif')
+panslarge.offflood.250m <- focal(panslarge.offflood.raster, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(panslarge.offflood.250m, 'GIS/Rasters for stacking/Focal rasters/panslarge.offflood_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+
+pans.offflood.raster <- raster('GIS/Rasters for stacking/pans.offflood.tif')
+pans.offflood.250m <- focal(pans.offflood.raster, w = matrix(1/251001, nc = 251, nr = 251))
+writeRaster(pans.offflood.250m, 'GIS/Rasters for stacking/Focal rasters/pans.offflood.250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+```
+
+For some reason, the termite mound layers are in the correct resolution, but the tree and pan focals are not stacking properly—the resolution is slightly off. So, we resample them here and re-export at correct resolution.
+```{r resample focal rasters}
+tree.crop.100m.res <- raster::resample(tree.crop.100m, termites.crop, method = 'bilinear')
+tree.crop.250m.res <- raster::resample(tree.crop.250m, termites.crop, method = 'bilinear')
+tree.crop.500m.res <- raster::resample(tree.crop.500m, termites.crop, method = 'bilinear')
+tree.crop.1km.res <- raster::resample(tree.crop.1km, termites.crop, method = 'bilinear')
+pans.crop.100m.res <- raster::resample(pans.crop.100m, termites.crop, method = 'bilinear')
+pans.crop.250m.res <- raster::resample(pans.crop.250m, termites.crop, method = 'bilinear')
+pans.crop.500m.res <- raster::resample(pans.crop.500m, termites.crop, method = 'bilinear')
+pans.crop.1km.res <- raster::resample(pans.crop.1km, termites.crop, method = 'bilinear')
+panscon.crop.100m.res <- raster::resample(panscon.crop.100m, termites.crop, method = 'bilinear')
+panscon.crop.250m.res <- raster::resample(panscon.crop.250m, termites.crop, method = 'bilinear')
+panscon.crop.500m.res <- raster::resample(panscon.crop.500m, termites.crop, method = 'bilinear')
+panscon.crop.1km.res <- raster::resample(panscon.crop.1km, termites.crop, method = 'bilinear')
+panslarge.crop.100m.res <- raster::resample(panslarge.crop.100m, termites.crop, method = 'bilinear')
+panslarge.crop.250m.res <- raster::resample(panslarge.crop.250m, termites.crop, method = 'bilinear')
+panslarge.crop.500m.res <- raster::resample(panslarge.crop.500m, termites.crop, method = 'bilinear')
+panslarge.crop.1km.res <- raster::resample(panslarge.crop.1km, termites.crop, method = 'bilinear')
+
+## Or this short for-loop does the same thing, maybe? Not actually sure, didn't have patience to run it.
+for (i in c(tree.crop.100m, tree.crop.250m, tree.crop.500m, tree.crop.1km, pans.crop.100m, pans.crop.250m, pans.crop.500m)){
+  i.res <- raster::resample(i, termites.crop, method='bilinear')
+}
+
+writeRaster(tree.crop.100m.res, 'tree.crop.100m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.250m.res, 'tree.crop.250m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.500m.res, 'tree.crop.500m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.1km.res, 'tree.crop.1km.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.100m.res, 'pans.crop.100m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.250m.res, 'pans.crop.250m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.500m.res, 'pans.crop.500m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.1km.res, 'pans.crop.1km.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.crop.100m.res, 'panscon.crop.100m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.crop.250m.res, 'panscon.crop.250m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.crop.500m.res, 'panscon.crop.500m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.crop.1km.res, 'panscon.crop.1km.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panslarge.crop.100m.res, 'panslarge.crop.100m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panslarge.crop.250m.res, 'panslarge.crop.250m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panslarge.crop.500m.res, 'panslarge.crop.500m.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panslarge.crop.1km.res, 'panslarge.crop.1km.res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+```
+
+
+## Making raster stack 
+
+Re-import the tree, termite, fire, pan rasters at correct resolution, if need be.
+```{r raster import}
+tree.crop.res <- raster("GIS/Rasters for stacking/tree.crop.res.tif")
+termites.crop <- raster("GIS/Rasters for stacking/termites.crop.tif")
+pans.raster <- raster("GIS/Rasters for stacking/pans.raster.tif")
+poaching.all.raster.res <- raster("GIS/Rasters for stacking/poaching.all.raster.res.tif")
+poaching.high.raster.res <- raster("GIS/Rasters for stacking/poaching.high.raster.res.tif")
+  
+fire.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire.crop.res.tif")
+fire2014.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire2014.crop.res.tif")
+fire2015.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire2015.crop.res.tif")
+fire2016.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire2016.crop.res.tif")
+fire2017.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire2017.crop.res.tif")
+fire2018.crop.res <- raster("GIS/Rasters for stacking/Fire rasters/fire2018.crop.res.tif")
+
+```
+
+
+Once the focal rasters have been exported as .tif files, we can import them at a later time rather than recreate them.
+```{r import focal rasters}
+## tree layers
+tree.crop.100m.res <- raster("GIS/Rasters for stacking/Focal rasters/tree.crop.100m.res.tif")
+tree.crop.250m.res <- raster("GIS/Rasters for stacking/Focal rasters/tree.crop.250m.res.tif")
+tree.crop.500m.res <- raster("GIS/Rasters for stacking/Focal rasters/tree.crop.500m.res.tif")
+tree.crop.1km.res <- raster("GIS/Rasters for stacking/Focal rasters/tree.crop.1km.res.tif")
+
+## termite layers
+termites.crop.100m <- raster("GIS/Rasters for stacking/Focal rasters/termites_100m.tif")
+termites.crop.250m <- raster("GIS/Rasters for stacking/Focal rasters/termites_250m.tif")
+termites.crop.500m <- raster("GIS/Rasters for stacking/Focal rasters/termites_500m.tif")
+termites.crop.1km <- raster("GIS/Rasters for stacking/Focal rasters/termites_1000m.tif")
+
+## pan layers
+pans.crop.100m.res <- raster("GIS/Rasters for stacking/Focal rasters/pans.crop.100m.res.tif")
+pans.crop.250m.res <- raster("GIS/Rasters for stacking/Focal rasters/pans.crop.250m.res.tif")
+pans.crop.500m.res <- raster("GIS/Rasters for stacking/Focal rasters/pans.crop.500m.res.tif")
+pans.crop.1km.res <- raster("GIS/Rasters for stacking/Focal rasters/pans.crop.1km.res.tif")
+```
+
+Likewise, once the distance rasters have been exported as .tif files, we can import them at a later time rather than recreate them.
+```{r import distance rasters}
+boundary.dist <- raster("GIS/Rasters for stacking/Distance rasters/boundary.distance.tif")
+
+rivers.dist <- raster("GIS/Rasters for stacking/Distance rasters/rivers.distance.tif")
+
+road.dist <- raster("GIS/Rasters for stacking/Distance rasters/road.distance.tif")
+
+roadsmajor.dist <- raster("GIS/Rasters for stacking/Distance rasters/road.major.distance.tif")
+
+urema.dist <- raster("GIS/Rasters for stacking/Distance rasters/urema.distance.tif")
+
+pans.dist <- raster("GIS/Rasters for stacking/Distance rasters/pans.distance.tif")
+```
+
+Combine all of the raster layers into a single raster stack. To do so, they must share an extent and resolution, but we have addressed that above already when cropping inputs and generating new distance raster layers. Everything is set to match termite.crop.
+```{r stack}
+# create raster stack at 2 meter x 2 meter resolution
+raster.stack <- raster::stack(tree.crop.res, termites.crop, fire.crop.res,
+                              poaching.all.raster.res, poaching.high.raster.res,
+                              boundary.dist, road.dist, roadsmajor.dist, urema.dist, 
+                              pans.dist, rivers.dist,
+                              tree.crop.100m.res, tree.crop.250m.res, tree.crop.500m.res, tree.crop.1km.res,
+                              termites.crop.100m, termites.crop.250m, termites.crop.500m, termites.crop.1km, 
+                              fire2015.crop.res, fire2016.crop.res, fire2017.crop.res,
+                              pans.crop.100m.res, pans.crop.250m.res, pans.crop.500m.res) 
+
+# change names for ease later on
+names(raster.stack) <- c("tree", "termites", "fire.interval", 
+                         "poaching.all", "poaching.high",
+                         "boundary.distance", "road.distance", "road.major.distance", "urema.distance", 
+                         "pan.distance", "river.distance",
+                         "tree.100m", "tree.250m", "tree.500m", "tree.1km",
+                         "termites.100m", "termites.250m", "termites.500m", "termites.1km",
+                         "fire2015", "fire2016", "fire2017",
+                         "pans.100m", "pans.250m", "pans.500m")
+```
+
+For modeling and projecting, we need to normalize the rasters (set with mean of 0, SD of 1). The function normImage takes a raster and, for each pixel, subtracts the mean and divides by standard deviation. First import all rasters (see code above).
+
+#### Masking rasters
+
+Then, I clip the rasters to the camera grid, so that the the normalization will occur within the study area rather than within the entire area of the rectangle (which includes areas outside of the park to the south of the river, and the floodplain to the north). In retrospect, I probably should have clipped the rasters like this from the start, rather than using a rectangle. But here we are. (Note that the clip function produces a rectangle, and you need the mask function to clip to the exact boundaries of the polygon. Also note that mask takes WAY longer than clip.) (See: https://stackoverflow.com/questions/23073669/clipping-raster-using-shapefile-in-r-but-keeping-the-geometry-of-the-shapefile)
+```{r mask rasters to camera grid}
+# read in camera polygons
+hexes <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Camera layers", "CameraGridHexes")
+
+# mask layers, export csv
+tree.crop.res.mask <- mask(tree.crop.res, hexes)
+writeRaster(tree.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.hansen.crop.res.mask <- mask(tree.hansen.crop.res, hexes)
+writeRaster(tree.hansen.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.hansen.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.mask <- mask(termites.crop, hexes)
+writeRaster(termites.crop.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.raster.mask <- mask(pans.raster, hexes)
+writeRaster(pans.raster.mask, 'GIS/Rasters for stacking/Masked rasters/pans.raster.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.all.raster.res.mask <- mask(poaching.all.raster.res, hexes)
+writeRaster(poaching.all.raster.res.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.all.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.high.raster.res.mask <- mask(poaching.high.raster.res, hexes)
+writeRaster(poaching.high.raster.res.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.high.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.3levels.mask <- mask(poaching.3levels.mask, hexes)
+writeRaster(poaching.3levels.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.3levels.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire.crop.res.mask <- mask(fire.crop.res, hexes)
+writeRaster(fire.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2014.crop.res.mask <- mask(fire2014.crop.res, hexes)
+writeRaster(fire2014.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2014.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2015.crop.res.mask <- mask(fire2015.crop.res, hexes)
+writeRaster(fire2015.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2015.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2016.crop.res.mask <- mask(fire2016.crop.res, hexes)
+writeRaster(fire2016.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2016.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2017.crop.res.mask <- mask(fire2017.crop.res, hexes)
+writeRaster(fire2017.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2017.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2018.crop.res.mask <- mask(fire2018.crop.res, hexes)
+writeRaster(fire2018.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2018.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.100m.res.mask <- mask(tree.crop.100m.res, hexes)
+writeRaster(tree.crop.100m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.250m.res.mask <- mask(tree.crop.250m.res, hexes)
+writeRaster(tree.crop.250m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.500m.res.mask <- mask(tree.crop.500m.res, hexes)
+writeRaster(tree.crop.500m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.1km.res.mask <- mask(tree.crop.1km.res, hexes)
+writeRaster(tree.crop.1km.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.100m.mask <- mask(termites.crop.100m, hexes)
+writeRaster(termites.crop.100m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.100m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.250m.mask <- mask(termites.crop.250m, hexes)
+writeRaster(termites.crop.250m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.500m.mask <- mask(termites.crop.500m, hexes)
+writeRaster(termites.crop.500m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.500m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.1km.mask <- mask(termites.crop.1km, hexes)
+writeRaster(termites.crop.1km.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.1km.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.100m.res.mask <- mask(pans.crop.100m.res, hexes)
+writeRaster(pans.crop.100m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.250m.res.mask <- mask(pans.crop.250m.res, hexes)
+writeRaster(pans.crop.250m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.500m.res.mask <- mask(pans.crop.500m.res, hexes)
+writeRaster(pans.crop.500m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.1km.res.mask <- mask(pans.crop.1km.res, hexes)
+writeRaster(pans.crop.1km.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+boundary.dist.mask <- mask(boundary.dist, hexes)
+writeRaster(boundary.dist.mask, 'GIS/Rasters for stacking/Masked rasters/boundary.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+rivers.dist.mask <- mask(rivers.dist, hexes)
+writeRaster(rivers.dist.mask, 'GIS/Rasters for stacking/Masked rasters/rivers.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+road.dist.mask <- mask(road.dist, hexes)
+writeRaster(road.dist.mask, 'GIS/Rasters for stacking/Masked rasters/road.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+roadsmajor.dist.mask <- mask(roadsmajor.dist, hexes)
+writeRaster(roadsmajor.dist.mask, 'GIS/Rasters for stacking/Masked rasters/roadsmajor.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+urema.dist.mask <- mask(urema.dist, hexes)
+writeRaster(urema.dist.mask, 'GIS/Rasters for stacking/Masked rasters/urema.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.dist.mask <- mask(pans.dist, hexes)
+writeRaster(pans.dist.mask, 'GIS/Rasters for stacking/Masked rasters/pans.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+settlement.dist.mask <- mask(settlement.dist, hexes)
+writeRaster(settlement.dist.mask, 'GIS/Rasters for stacking/Masked rasters/settlement.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.250m <- raster("GIS/Rasters for stacking/Focal rasters/panscon_250m.tif")
+panscon.250m.mask <- mask(panscon.250m, hexes)
+writeRaster(panscon.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.250m <- raster("GIS/Rasters for stacking/Focal rasters/panscon_250m.tif")
+panscon.250m.mask <- mask(panscon.250m, hexes)
+writeRaster(panscon.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.offflood.250m.mask <- mask(panscon.offflood.250m, hexes)
+writeRaster(panscon.offflood.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.offflood.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+# check that it worked (it did!)
+plot(tree.crop.res)
+plot(tree.crop.res.clip)
+plot(hexes, add=TRUE, lwd=2)
+```
+
+#### Normalizing rasters
+
+Then this code normalizes them and exports csvs into a new folder of normalized rasters. It takes about 45 seconds to normalize each layer, which is not as bad as I thought it would be. However, it does run out of memory, so I had to export csvs as I went and then periodically restart. I probably should have written a loop, but didn't. It also would have been possible to do this normalization to a raster stack (I think?) as opposed to each raster individually, but I figured that would have taken ages and broken R.
+```{r normalize}
+# normalize and export
+tree.crop.res.norm <- normImage(tree.crop.res.mask, norm = TRUE)
+writeRaster(tree.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.hansen.crop.res.norm <- normImage(tree.hansen.crop.res.mask, norm = TRUE)
+writeRaster(tree.hansen.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.hansen.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.norm <- normImage(termites.crop.mask, norm = TRUE)
+writeRaster(termites.crop.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.raster.norm <- normImage(pans.raster.mask, norm = TRUE)
+writeRaster(pans.raster.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.raster.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.all.raster.res.norm <- normImage(poaching.all.raster.res.mask, norm = TRUE)
+writeRaster(poaching.all.raster.res.norm , 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.all.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.high.raster.res.norm <- normImage(poaching.high.raster.res.mask, norm = TRUE)
+writeRaster(poaching.high.raster.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.high.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.3levels.mask.norm <- normImage(poaching.3levels.mask, norm = TRUE)
+writeRaster(poaching.3levels.mask.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.3levels.mask.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire.crop.res.norm <- normImage(fire.crop.res.mask, norm = TRUE)
+writeRaster(fire.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2014.crop.res.norm <- normImage(fire2014.crop.res.mask, norm = TRUE)
+writeRaster(fire2014.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2014.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2015.crop.res.norm <- normImage(fire2015.crop.res.mask, norm = TRUE)
+writeRaster(fire2015.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2015.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2016.crop.res.norm <- normImage(fire2016.crop.res.mask, norm = TRUE)
+writeRaster(fire2016.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2016.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2017.crop.res.norm <- normImage(fire2017.crop.res.mask, norm = TRUE)
+writeRaster(fire2017.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2017.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2018.crop.res.norm <- normImage(fire2018.crop.res.mask, norm = TRUE)
+writeRaster(fire2018.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2018.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.100m.res.norm <- normImage(tree.crop.100m.res.mask, norm = TRUE)
+writeRaster(tree.crop.100m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.250m.res.norm <- normImage(tree.crop.250m.res.mask, norm = TRUE)
+writeRaster(tree.crop.250m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.500m.res.norm <- normImage(tree.crop.500m.res.mask, norm = TRUE)
+writeRaster(tree.crop.500m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.1km.res.norm <- normImage(tree.crop.1km.res.mask, norm = TRUE)
+writeRaster(tree.crop.1km.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.100m.norm <- normImage(termites.crop.100m.mask, norm = TRUE)
+writeRaster(termites.crop.100m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.100m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.250m.norm <- normImage(termites.crop.250m.mask, norm = TRUE)
+writeRaster(termites.crop.250m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.500m.norm <- normImage(termites.crop.500m.mask, norm = TRUE)
+writeRaster(termites.crop.500m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.500m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.1km.norm <- normImage(termites.crop.1km.mask, norm = TRUE)
+writeRaster(termites.crop.1km.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.1km.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.100m.res.norm <- normImage(pans.crop.100m.res.mask, norm = TRUE)
+writeRaster(pans.crop.100m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.250m.res.norm <- normImage(pans.crop.250m.res.mask, norm = TRUE)
+writeRaster(pans.crop.250m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.500m.res.norm <- normImage(pans.crop.500m.res.mask, norm = TRUE)
+writeRaster(pans.crop.500m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.1km.res.norm <- normImage(pans.crop.1km.res.mask, norm = TRUE)
+writeRaster(pans.crop.1km.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+boundary.dist.norm <- normImage(boundary.dist.mask, norm = TRUE)
+writeRaster(boundary.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/boundary.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+rivers.dist.norm <- normImage(rivers.dist.mask, norm = TRUE)
+writeRaster(rivers.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/rivers.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+road.dist.norm <- normImage(road.dist.mask, norm = TRUE)
+writeRaster(road.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/road.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+roadsmajor.dist.norm <- normImage(roadsmajor.dist.mask, norm = TRUE)
+writeRaster(roadsmajor.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/roadsmajor.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+urema.dist.norm <- normImage(urema.dist.mask, norm = TRUE)
+writeRaster(urema.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/urema.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.dist.norm <- normImage(pans.dist.mask, norm = TRUE)
+writeRaster(pans.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+settlement.dist.norm <- normImage(settlement.dist.mask, norm = TRUE)
+writeRaster(settlement.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/settlement.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.250.norm <- normImage(panscon.250.mask, norm = TRUE)
+writeRaster(panscon.250.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panslarge.250.norm <- normImage(panslarge.250.mask, norm = TRUE)
+writeRaster(panslarge.250.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.offflood.250m.norm <- normImage(panscon.offflood.250m.mask, norm = TRUE)
+writeRaster(panscon.offflood.250m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.offflood.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+# can see how the function normalized the raster values (shown here for one layer)
+hist(termites.crop.100m)
+hist(termites.crop.100m.norm)
+
+# handy code for measuring how long something takes in R
+start_time <- Sys.time()
+# run the code here
+end_time <- Sys.time()
+end_time - start_time
+
+```
+
+If need be later, import all of the normalized and masked rasters.
+```{r import normalized and masked}
+tree.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.res.norm.tif")
+termites.crop.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.norm.tif")
+pans.raster.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.raster.norm.tif")
+poaching.all.raster.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/poaching.all.raster.res.norm.tif")
+poaching.high.raster.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/poaching.high.raster.res.norm.tif")
+fire.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire.crop.res.norm.tif")
+fire2014.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire2014.crop.res.norm.tif")
+fire2015.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire2015.crop.res.norm.tif")
+fire2016.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire2016.crop.res.norm.tif")
+fire2017.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire2017.crop.res.norm.tif")
+fire2018.crop.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/fire2018.crop.res.norm.tif")
+tree.crop.100m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.100m.res.norm.tif")
+tree.crop.250m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.250m.res.norm.tif")
+tree.crop.500m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.500m.res.norm.tif")
+tree.crop.1km.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.1km.res.norm.tif")
+termites.crop.100m.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.100m.norm.tif")
+termites.crop.250m.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.250m.norm.tif")
+termites.crop.500m.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.500m.norm.tif")
+termites.crop.1km.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.1km.norm.tif")
+pans.crop.100m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.100m.res.norm.tif")
+pans.crop.250m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.250m.res.norm.tif")
+pans.crop.500m.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.500m.res.norm.tif")
+pans.crop.1km.res.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.1km.res.norm.tif")
+boundary.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/boundary.dist.norm.tif")
+rivers.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/rivers.dist.norm.tif")
+road.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/road.dist.norm.tif")
+roadsmajor.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/roadsmajor.dist.norm.tif")
+urema.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/urema.dist.norm.tif")
+pans.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/pans.dist.norm.tif")
+settlement.dist.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/settlement.dist.norm.tif")
+tree.hansen.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/tree.hansen.crop.res.norm.tif")
+lion.latedry <- raster("GIS/Spatial Data/Lion_Isopleths/all.latedry.summed.tif")
+lion.wet <- raster("GIS/Spatial Data/Lion_Isopleths/all.wet.summed.tif")
+pans.con.250 <- raster("GIS/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif")
+poaching.3levels.mask.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/poaching.3levels.mask.norm.tif")
+panscon.offflood.250m.norm <- raster("GIS/Rasters for stacking/Normalized and masked rasters/panscon.offflood.250m.norm.tif")
+
+```
+
+#### Stack the normalized and masked rasters.
+```{r stack norm}
+# create raster stack at 2 meter x 2 meter resolution, masked to camera grid, and normalized (each layer with mean of 0 and SD of 1)
+raster.stack.norm <- raster::stack(tree.crop.res.norm, termites.crop.norm, fire.crop.res.norm,
+                              poaching.all.raster.res.norm, poaching.high.raster.res.norm,
+                              boundary.dist.norm, road.dist.norm, roadsmajor.dist.norm, urema.dist.norm, 
+                              pans.dist.norm, rivers.dist.norm, settlement.dist.norm,
+                              tree.crop.100m.res.norm, tree.crop.250m.res.norm, tree.crop.500m.res.norm, tree.crop.1km.res.norm,
+                              termites.crop.100m.norm, termites.crop.250m.norm, termites.crop.500m.norm, termites.crop.1km.norm, 
+                              fire2015.crop.res.norm, fire2016.crop.res.norm, fire2017.crop.res.norm,
+                              pans.crop.100m.res.norm, pans.crop.250m.res.norm, pans.crop.500m.res.norm, tree.hansen.norm, lion.latedry, lion.wet, pans.con.250, poaching.3levels.mask.norm, panscon.offflood.250m.norm) 
+
+# change names for ease later on
+names(raster.stack.norm) <- c("tree", "termites", "fire.interval", 
+                         "poaching.all", "poaching.high",
+                         "boundary.distance", "road.distance", "road.major.distance", "urema.distance", 
+                         "pan.distance", "river.distance", "settlement.distance",
+                         "tree.100m", "tree.250m", "tree.500m", "tree.1km",
+                         "termites.100m", "termites.250m", "termites.500m", "termites.1km",
+                         "fire2015.date", "fire2016.date", "fire2017.date",
+                         "pans.100m", "pans.250m", "pans.500m", "tree.hansen", 
+                         "lion.dry", "lion.wet", "panscon.250m", "poaching", "panscon.offflood.250")
+```
+
+
+#### Create coarser grid
+
+Later, when projecting the results of models, we will want a coarser resolution to speed things up. The aggregate function creates a new raster with lower resolution (larger cells), and a new value is calculated (default = mean). The "factor" argument specifies that X times fewer cells will be created in both horizontal and vertical direction (so a factor of X*X cells fewer in total). The raster will expand (expand = TRUE is default) beyond the extent, if smaller cells do not divide evenly into new large cell size. (see https://www.rdocumentation.org/packages/raster/versions/1.0.0-1/topics/aggregate).  Here, I am using a factor of 50, so that the 2 meter x 2 meter cells goes to 100 meter x 100 meter cells.
+```{r coarser grid for mapping}
+tree.crop.res.norm.coarse <- aggregate(tree.crop.res.norm, fact=50)
+writeRaster(tree.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.hansen.crop.res.norm.coarse <- aggregate(tree.hansen.crop.res.norm, fact=50)
+writeRaster(tree.hansen.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.hansen.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.norm.coarse <- aggregate(termites.crop.norm, fact=50)
+writeRaster(termites.crop.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.raster.norm.coarse <- aggregate(pans.raster.norm, fact=50)
+pans.raster.norm.coarse <- raster::resample(pans.raster.norm.coarse, termites.crop.norm.coarse, method = 'bilinear')
+writeRaster(pans.raster.norm.coarse , 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.raster.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.all.raster.res.norm.coarse <- aggregate(poaching.all.raster.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, poaching.all.raster.res.norm.coarse)
+writeRaster(poaching.all.raster.res.norm.coarse , 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/poaching.all.raster.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.3levels.mask.norm.coarse <- aggregate(poaching.3levels.mask.norm, fact=50)
+writeRaster(poaching.3levels.mask.norm.coarse , 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/poaching.3levels.mask.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+poaching.high.raster.res.norm.coarse <- aggregate(poaching.high.raster.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, poaching.high.raster.res.norm.coarse)
+writeRaster(poaching.high.raster.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/poaching.high.raster.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire.crop.res.norm.coarse <- aggregate(fire.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire.crop.res.norm.coarse)
+writeRaster(fire.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2014.crop.res.norm.coarse <- aggregate(fire2014.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire2014.crop.res.norm.coarse)
+writeRaster(fire2014.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2014.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2015.crop.res.norm.coarse <- aggregate(fire2015.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire2015.crop.res.norm.coarse)
+writeRaster(fire2015.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2015.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2016.crop.res.norm.coarse <- aggregate(fire2016.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire2016.crop.res.norm.coarse)
+writeRaster(fire2016.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2016.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2017.crop.res.norm.coarse <- aggregate(fire2017.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire2017.crop.res.norm.coarse)
+writeRaster(fire2017.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2017.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+fire2018.crop.res.norm.coarse <- aggregate(fire2018.crop.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, fire2018.crop.res.norm.coarse)
+writeRaster(fire2018.crop.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/fire2018.crop.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.100m.res.norm.coarse <- aggregate(tree.crop.100m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, tree.crop.100m.res.norm.coarse)
+writeRaster(tree.crop.100m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.100m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.250m.res.norm.coarse <- aggregate(tree.crop.250m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, tree.crop.250m.res.norm.coarse)
+writeRaster(tree.crop.250m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.250m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.500m.res.norm.coarse <- aggregate(tree.crop.500m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, tree.crop.500m.res.norm.coarse)
+writeRaster(tree.crop.500m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.500m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+tree.crop.1km.res.norm.coarse <- aggregate(tree.crop.1km.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, tree.crop.1km.res.norm.coarse)
+writeRaster(tree.crop.1km.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/tree.crop.1km.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.100m.norm.coarse <- aggregate(termites.crop.100m.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, termites.crop.100m.norm.coarse)
+writeRaster(termites.crop.100m.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.100m.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.250m.norm.coarse <- aggregate(termites.crop.250m.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, termites.crop.250m.norm.coarse)
+writeRaster(termites.crop.250m.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.250m.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.500m.norm.coarse <- aggregate(termites.crop.500m.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, termites.crop.500m.norm.coarse)
+writeRaster(termites.crop.500m.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.500m.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+termites.crop.1km.norm.coarse <- aggregate(termites.crop.1km.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, termites.crop.1km.norm.coarse)
+writeRaster(termites.crop.1km.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/termites.crop.1km.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.100m.res.norm.coarse <- aggregate(pans.crop.100m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, pans.crop.100m.res.norm.coarse)
+writeRaster(pans.crop.100m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.100m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.250m.res.norm.coarse <- aggregate(pans.crop.250m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, pans.crop.250m.res.norm.coarse)
+writeRaster(pans.crop.250m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.250m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.500m.res.norm.coarse <- aggregate(pans.crop.500m.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, pans.crop.500m.res.norm.coarse)
+writeRaster(pans.crop.500m.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.500m.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.crop.1km.res.norm.coarse <- aggregate(pans.crop.1km.res.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, pans.crop.1km.res.norm.coarse)
+writeRaster(pans.crop.1km.res.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.crop.1km.res.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+boundary.dist.norm.coarse <- aggregate(boundary.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, boundary.dist.norm.coarse)
+writeRaster(boundary.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/boundary.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+rivers.dist.norm.coarse <- aggregate(rivers.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, rivers.dist.norm.coarse)
+writeRaster(rivers.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/rivers.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+road.dist.norm.coarse <- aggregate(road.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, road.dist.norm.coarse)
+writeRaster(road.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/road.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+roadsmajor.dist.norm.coarse <- aggregate(roadsmajor.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, roadsmajor.dist.norm.coarse)
+writeRaster(roadsmajor.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/roadsmajor.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+urema.dist.norm.coarse <- aggregate(urema.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, urema.dist.norm.coarse)
+writeRaster(urema.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/urema.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+settlement.dist.norm.coarse <- aggregate(settlement.dist.norm, fact=50)
+writeRaster(settlement.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/settlement.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.dist.norm.coarse <- aggregate(pans.dist.norm, fact=50)
+test <- raster::stack(termites.crop.norm.coarse, pans.dist.norm.coarse)
+writeRaster(pans.dist.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/pans.dist.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.250.norm.coarse <- aggregate(panscon.250.norm, fact=50)
+writeRaster(panscon.250.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/panscon.250.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panslarge.250.norm.coarse <- aggregate(panslarge.250.norm, fact=50)
+writeRaster(panslarge.250.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/panslarge.250.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.offflood.250m.norm.coarse <- aggregate(panscon.offflood.250m.norm, fact=50)
+writeRaster(panscon.offflood.250m.norm.coarse, 'GIS/Rasters for stacking/Normalized and masked and coarse rasters/panscon.offflood.250m.norm.coarse.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+```
+
+I ran the first few lines (for tree, pan, and termite) and for some reason, the number of rows in the resulting coarse maps is slightly off. There are 217 rows for termites and trees, and 218 rows for pans. This means that they won't stack properly. I thought I would try to resample the other layers to match termites.crop.norm.coarse (the aggregated termite layer), rather than run aggregate for each row and then have to resample again. Seemed more efficient, and likely less information lost/error introduced. See below for that code.
+
+But before I did that, I wanted to confirm that these methods would get me the same results. Above, I had used aggregate to create a coarser tree layer, which matched the termite layer in resolution (they were able to stack). Below, I use resample to create a coarser tree layer based on the coarse termite layer. Then I subtract the two to see if they are different, and by how much.
+```{r compare aggregate vs resample}
+tree.crop.res.norm.coarse.2 <- raster::resample(tree.crop.res.norm, termites.crop.norm.coarse, method = 'bilinear')
+
+difference.aggregate.resample.tree <- tree.crop.res.norm.coarse.2 - tree.crop.res.norm.coarse
+plot(difference.aggregate.resample.tree)
+
+plot(tree.crop.res.norm.coarse)
+plot(tree.crop.res.norm.coarse.2)
+
+poaching.all.raster.res.norm.coarse.2 <- raster::resample(poaching.all.raster.res.norm, termites.crop.norm.coarse, method = 'bilinear')
+
+plot(poaching.all.raster.res.norm.coarse)
+plot(poaching.all.raster.res.norm.coarse.2)
+plot(poaching.all.raster.res.norm.coarse - poaching.all.raster.res.norm.coarse.2)
+```
+They are slightly different. The resampled version looks smoother than the aggregated version, which is more pixelated. The resampled version takes a smoothed average over neighboring grid cells, whereas the aggregate does a straight-up average. Hmph. But I don't think they are different enough to make a difference, considering the main purpose of this coarse raster stack is visualization. Going to go with the aggregate approach, since it seems better.
+
+See this convo, which suggests they should be the same (though they aren't): https://gis.stackexchange.com/questions/255150/using-resample-vs-aggregate-extend-in-r-to-have-rasters-of-matching-resolutio
+
+What about using resample on the aggregate output? Does that actually change cell value, or just extent?
+```{r compare aggregate vs resample pt 2, eval = F}
+poaching.all.raster.res.norm.coarse.3 <- raster::resample(poaching.all.raster.res.norm.coarse, termites.crop.norm.coarse, method = 'bilinear')
+
+plot(poaching.all.raster.res.norm.coarse - poaching.all.raster.res.norm.coarse.3)
+```
+Much better. It doesn't line up exactly, but it's only off by a factor of 10^-16. Let's do that approach. where needed. (Incorporated into coarsening code above).
+
+(After all of that, though, the only layer that didn't match up after the aggregate function was the pan layer, which I am not even using - I care more about the distance to pan and the pan neighborhood rasters)
+
+
+#### Extracting raster values
+
+Using this function, it is also possible to extract the average value around some buffer. There is an argument buffer=, which would take a number in meters, and an argument fun=, which could be mean, for example. However, it would be preferable to generate a raster layer of averaged values using the focal function (as done above) and put it in the stack, so that we can later use this raster layer to plot model output.
+```{r extract}
+fielddata <- read.csv("Data/cam_metadata_fromfield.csv", header = T)  ## csv with camera coordinates
+
+# define standardization function
+zstd <- function (x)  (x-mean(x,na.rm = T))/sd(x,na.rm = T)  
+
+fielddata.tostandardize <- fielddata[, 6:14]
+fielddata.ok <- fielddata[, c(1:5, 15:16)]
+fielddata.tostandardize <- apply(fielddata.tostandardize,2,zstd)
+fielddata <- cbind(fielddata.ok, fielddata.tostandardize)
+
+#raster.values <- raster::extract(raster.stack, camerasUTM.sp) # extract raster values
+#metadata <- cbind(data, raster.values) # combine with camera names and locations
+#head(metadata) # view metadata
+#write.csv(metadata, file = "Data/cam_metadata_102518.csv", row.names = FALSE)
+
+# updated with normalized values
+raster.values <- raster::extract(raster.stack.norm, camerasUTM.sp) # extract raster values
+metadata <- cbind(fielddata, raster.values) # combine with camera names and locations
+head(metadata) # view metadata
+write.csv(metadata, file = "Data/cam_metadata_norm_091719.csv", row.names = FALSE)
+
+# for tree hansen layer - wanted to get the raw values, before they'd been normalized
+raster.values.hansen <- raster::extract(tree.hansen.UTM, camerasUTM.sp) # extract raster values
+head(raster.values.hansen)
+raster.values.hansen <- cbind(fielddata, raster.values.hansen)
+raster.values.hansen <- select(raster.values.hansen, 'StudySite', 'raster.values.hansen')
+write.csv(raster.values.hansen, file = "Data/cam_metadata_hansenraw_091719.csv", row.names = FALSE)
+```
+
+A quick test to compare these metadata to what I had previously calculated in ArcMap.
+```{r arc compare}
+metadata.arc <- read.csv("Data/Archives/2018sitecov2.csv", header=T) # import Arc metadata
+metadata.compare <- cbind(metadata, metadata.arc) # join with R metadata
+head(metadata.compare)
+
+par(mfrow=c(1,3))
+plot(boundary.distance ~ Border_dist_km, data = metadata.compare) # park boundary
+plot(road.distance ~ Road_dist_km, data = metadata.compare) # road
+plot(urema.distance ~ Lake_dist_km, data = metadata.compare) # lake urema
+```
+
+The park boundary and Lake Urema plots look great! Something seems a little off with the roads. Plotting again with camera names so we can identify the cuplrits. 
+```{r road investigation}
+par(mfrow=c(1,1))
+plot(road.distance ~ Road_dist_km, data = metadata.compare, col="lightblue", pch=19, cex=2) # road regression
+text(road.distance ~ Road_dist_km, labels = Grid, data = metadata.compare, cex=0.9, font=1) # add labels
+
+plot(road.dist)
+lines(roads.lyr.UTM, col="gray")
+points(cameras.UTM, pch=20, cex=0.6, col="red") # adds camera points
+```
+
+It looks like E06, E04, and E10 are fairly off: makes sense. Originally, in ArcMap, I used the road layer without the P2/P3 and P3/P4 cut-throughs. These roads are only intermittently maintained, so a bit of a coin toss about whether they should even be included. (I'm noticiting that the P7A cut-through is missing in both layers, but since that road is basically not a road, it shouldn't be used).
+
+After initially discovering this, I created a road layer with only major roads. This was a bit subjective, but I included roads that are regularly maintained and used by tourist vehicles and ranger vehicles. This excluded the P2/P3 and P3/P4 cut-throughs, 7A, the 7A-11 cut-through. Could possibly be changed, but for now it seems okay. Unfortunately there isn't great data on vehicle traffic on the various roads in the park.
+
+```{r more road investigation}
+par(mfrow=c(1,1))
+plot(road.major.distance ~ Road_dist_km, data = metadata.compare, col="lightblue", pch=19, cex=2) # road regression
+text(road.major.distance ~ Road_dist_km, labels = Grid, data = metadata.compare, cex=0.9, font=1) # add labels
+```
+
+Out of curiosity, I want to investigate how different the variables are when they are normalized before extraction vs. after extraction. (Note: see script Normalization_comparison.R)
+
+
+## Spatial modeling
+
+To plot the spatial predictions of a model, first create a raster stack (combined raster layers for dependent variables) and then use the predict() function to generate a raster layer based on the model object. The model can be a fitted model of any class with a 'predict' method (ex. a glm, gam, randomForest).
+
+The names in the RasterStack should exactly match those expected by the model. This would be the case if the same RasterStack was used (via extract) to obtain the values to fit the model (but that likely won't be what I do with Gorongosa data).
+
+```{r model prediction, eval = FALSE}
+mystack <- raster::stack(x,y,z) # where you have spatial layers x, y, z
+prediction <- raster::predict(mystack, mymodel, type = "response") # to predict the response variable from object "mymodel"
+plot(prediction)
+```
+
+

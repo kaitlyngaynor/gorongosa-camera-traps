@@ -1,0 +1,1705 @@
+---
+title: "Gorongosa_occupancy_results_exploration"
+author: "Kaitlyn Gaynor"
+date: "10/25/2018"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+### Setup
+
+```{r setup}
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+library(ggplot2)
+library(plyr)
+library(rgdal)
+library(broom)
+library(raster)
+library(data.table)
+library(forcats)
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+```
+
+
+## Wet1+2 and Dry1+2 all species (with covariates)
+
+```{r wet and dry with covariates}
+sppcov.wet <- read.csv("Results/Occupancy/033019/Wet_year1and2_withcovariates_species.csv")
+names(sppcov.wet) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry <- read.csv("Results/Occupancy/033019/Dry_year1and2_withcovariates_species.csv")
+names(sppcov.dry) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet <- join(sppcov.wet, Spp, by = "SppCode")
+sppcov.dry <- join(sppcov.dry, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet$Season <- "wet"
+sppcov.dry$Season <- "dry"
+sppcov <- rbind(sppcov.wet, sppcov.dry)
+
+# combine lion levels
+sppcov$Factor <- fct_collapse(sppcov$Factor, lion = c("lion.dry", "lion.wet"))
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+```
+
+### Plot effects of each covariate
+
+For LMH only, so it is more visible.
+
+##### Fire frequency
+
+```{r covariate effects}
+# fire frequency
+pdf('Figures/Occupancy/Occupancy_fire.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+# niche width and fire - the wider the niche, the less they spend in fire-y areas (slightly?? maybe moreso in the wet season?)
+# at population level
+pdf('Figures/Occupancy/Occupancy_fire_nichewidth.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=Pansu_pop_niche_width, y=Mean, col = Season, fill = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid(~Season) +
+  labs(title = "Fire frequency") +
+  xlab("Niche Width") +
+  ylab("Beta Coefficient")
+dev.off()
+  
+fit <- lm(Mean ~ Pansu_pop_niche_width, data = subset(sppcov, Factor == "fire.interval" & LMH =="yes" & Season == "dry"))  
+summary(fit)
+fit <- lm(Mean ~ Pansu_pop_niche_width, data = subset(sppcov, Factor == "fire.interval" & LMH =="yes" & Season == "wet"))  
+summary(fit)
+
+# model of niche width and Season vs fire return frequency with Species as random effect
+fit <- lme(Mean ~ Pansu_pop_niche_width + Season, random = (~1|SppCode), na.action = 'na.omit', data = subset(sppcov, Factor == "fire.interval" & LMH =="yes"))  
+summary(fit)
+
+# at individual level - no relationship
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=Pansu_indiv_niche_breadth, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid(Season ~ .)
+  labs(title = "Fire frequency") 
+  
+# Hempsen diet category and fire
+# GRO = obligate grazer, GRV = variable grazer, BGI = browser- grazer intermediate, GEN = generalist, BRW = browser and FRG = frugivore
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency") +
+  facet_grid(~ Hempsen_diet, scale = "free", space = "free")  
+
+# with fewer Hempsen diet layers
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency") +
+  facet_grid(~ Hempsen_diet2, scale = "free", space = "free")
+
+# with fewer Hempsen diet layers - boxplot
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=Season, y=Mean, fill = Season)) + 
+  labs(title = "Fire frequency") +
+  geom_boxplot() +
+  facet_grid(~Hempsen_diet2)
+```
+
+##### Lion
+
+```{r lion occupancy}
+# lion
+pdf('Figures/Occupancy/Occupancy_lion.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lions & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+# by body size - the wet season effect is greater for smaller-bodied species, suggesting they may suffer greater predation risk in the wet season
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=log(Hempsen_mass_kg), y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid(Season ~ .)
+  labs(title = "Lion activity") 
+  
+# by herd size
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lion activity") + 
+  facet_grid(~ Hempsen_herd_size, scale = "free", space = "free")  
+```
+
+##### Pans
+
+```{r pans occupancy}
+# pans
+pdf('Figures/Occupancy/Occupancy_pans.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "panscon.250m" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+# by water dependence
+ggplot(subset(sppcov, Factor == "panscon.250m" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density") + 
+  facet_grid(~ Hempsen_water_dependence, scale = "free", space = "free")
+```
+
+##### Poaching
+
+```{r poaching occupancy}
+# poaching
+pdf('Figures/Occupancy/Occupancy_poaching.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "poaching" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+```
+
+##### Road
+```{r road occupancy}
+# road distance
+pdf('Figures/Occupancy/Occupancy_roads.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "road.major.distance" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Roads & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+```
+
+##### River
+```{r river occupancy}
+# river distance
+pdf('Figures/Occupancy/Occupancy_rivers.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "river.distance" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Rivers & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+```
+
+##### Termite mounds
+```{r termite occupancy}
+# termite mound density
+pdf('Figures/Occupancy/Occupancy_termite.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "termite.count.100m" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+pdf('Figures/Occupancy/Occupancy_termite_nichewidth.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "termite.count.100m" & LMH =="yes"), aes(x=Pansu_pop_niche_width, y=Mean, col = Season, fill = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid(~Season) +
+  labs(title = "Termite mound density") +
+  xlab("Niche Width") +
+  ylab("Beta Coefficient")
+dev.off()
+```
+
+##### Tree cover
+```{r tree occupancy}
+# tree cover
+pdf('Figures/Occupancy/Occupancy_tree.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+pdf('Figures/Occupancy/Occupancy_tree_dietclass.pdf')
+# with fewer Hempsen diet layers - boxplot
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=Season, y=Mean, fill = Season)) + 
+  labs(title = "Tree cover by diet") +
+  geom_boxplot() +
+  facet_grid(~Hempsen_diet2)
+dev.off()
+
+pdf('Figures/Occupancy/Occupancy_tree_grassdiet.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=Pansu_percent_gras_RRA, y=Mean, col = Season, fill = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid(~Season) +
+  labs(title = "Tree Cover") +
+  xlab("Percent Grass in Diet") +
+  ylab("Beta Coefficient")
+dev.off()
+```
+
+##### Lake
+```{r urema occupancy}
+# urema distance
+pdf('Figures/Occupancy/Occupancy_lake.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lake Urema & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+dev.off()
+
+pdf('Figures/Occupancy/Occupancy_lake_floodplaincounts.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=Floodplain.pct, y=Mean, col = Season, fill = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  geom_smooth(method='lm') +
+  facet_grid( ~ Season) +
+#  labs(title = "Urema distance") +
+  ylab("Beta Coefficient for Distance to Lake Urema") +
+  xlab("Floodplain Concentration in Dry Season (from Aerial Counts)")
+dev.off()
+
+# with fewer Hempsen diet layers - boxplot
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=Season, y=Mean, fill = Season)) + 
+  labs(title = "Lake distance by diet") +
+  geom_boxplot() +
+  facet_grid(~Hempsen_diet2)
+```
+
+#### Quick explore of a bunch of trait effects on different covariates
+```{r effects of traits on covariates}
+# relating to diet
+
+########################################
+# Hempsen_category
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_hempsencategory.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Hempsen_category, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Hempsen category") +
+  xlab("Hempsen category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_hempsencategory_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Hempsen_category, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Hempsen category") +
+  xlab("Hempsen category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_hempsencategory_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Hempsen_category, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Hempsen category") +
+  xlab("Hempsen category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+
+########################################
+# Pansu_pop_niche_width
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_nichewidth.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Pansu_pop_niche_width, y=Mean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche width") +
+  xlab("Niche Width") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_nichewidth_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Pansu_pop_niche_width, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche width") +
+  xlab("Niche Width") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_nichewidth_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Pansu_pop_niche_width, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche width") +
+  xlab("Niche Width") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+########################################
+# Pansu_indiv_niche_breadth
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_nichebreadthindiv.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Pansu_indiv_niche_breadth, y=Mean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche breadth (individual)") +
+  xlab("Niche Breadth (individual)") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_nichebreadthindiv_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Pansu_indiv_niche_breadth, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche breadth (individual)") +
+  xlab("Niche Breadth (individual)") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+
+pdf('Figures/Occupancy/Allestimates_vs_nichebreadthindiv_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Pansu_indiv_niche_breadth, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Niche breadth (individual)") +
+  xlab("Niche Breadth (individual)") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+########################################
+# Hempsen_diet2
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_dietcategory.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Hempsen_diet2, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Diet category") +
+  xlab("Diet category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_dietcategory_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Hempsen_diet2, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Diet category") +
+  xlab("Diet category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_dietcategory_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Hempsen_diet2, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Diet category") +
+  xlab("Diet category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+
+########################################
+# Pansu_percent_gras_RRA
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_grassindiet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Pansu_percent_gras_RRA, y=Mean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "% Grass in Diet") +
+  xlab("% Grass in Diet") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_grassindiet_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Pansu_percent_gras_RRA, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "% Grass in Diet") +
+  xlab("% Grass in Diet") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_grassindiet_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Pansu_percent_gras_RRA, y=Mean)) + 
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_smooth(method='lm') +
+  labs(title = "% Grass in Diet") +
+  xlab("% Grass in Diet") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+# relating to water stuff
+
+########################################
+# Floodplain.pct
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_floodplainpct.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Floodplain.pct, y=Mean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "% Floodplain") +
+  xlab("% Floodplain") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_floodplainpct_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Floodplain.pct, y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "% Floodplain") +
+  xlab("% Floodplain") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_floodplainpct_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Floodplain.pct, y=Mean)) + 
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_smooth(method='lm') +
+  labs(title = "% Floodplain") +
+  xlab("% Floodplain") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+########################################
+# Hempsen_water_dependence
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_waterdependence.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Hempsen_water_dependence, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Water dependence") +
+  xlab("Water dependence") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_waterdependence_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Hempsen_water_dependence, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Water dependence") +
+  xlab("Water dependence") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_waterdependence_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Hempsen_water_dependence, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Water dependence") +
+  xlab("Water dependence") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+# sociality
+
+########################################
+# Hempsen_herd_size
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_herdsize.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Hempsen_herd_size, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Herd size") +
+  xlab("Herd size") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_herdsize_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Hempsen_herd_size, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Herd size") +
+  xlab("Herd size") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_herdsize_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Hempsen_herd_size, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Herd size") +
+  xlab("Herd size") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+
+########################################
+# Sociality
+########################################
+
+
+pdf('Figures/Occupancy/Allestimates_vs_sociality.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Sociality, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Sociality") +
+  xlab("Sociality") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_sociality_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Sociality, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Sociality") +
+  xlab("Sociality") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_sociality_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Sociality, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Sociality") +
+  xlab("Sociality") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+# size
+
+########################################
+# Weight
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_weight.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=log(Weight), y=Mean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Weight") +
+  xlab("Weight") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_weight_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=log(Weight), y=Mean)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Weight") +
+  xlab("Weight") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_weight_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=log(Weight), y=Mean)) + 
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_smooth(method='lm') +
+  labs(title = "Weight") +
+  xlab("Weight") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+########################################
+# Mass_category
+########################################
+
+pdf('Figures/Occupancy/Allestimates_vs_Mass_category.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes"), aes(x=Mass_category, y=Mean, fill = Season)) + 
+  geom_boxplot() +
+  labs(title = "Mass_category") +
+  xlab("Mass_category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_Mass_category_dry.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'dry'), aes(x=Mass_category, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Mass_category") +
+  xlab("Mass_category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+pdf('Figures/Occupancy/Allestimates_vs_Mass_category_wet.pdf', height = 9, width = 12)
+ggplot(subset(sppcov, LMH =="yes" & Season == 'wet'), aes(x=Mass_category, y=Mean)) + 
+  geom_boxplot() +
+  labs(title = "Mass_category") +
+  xlab("Mass_category") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Factor, scales = 'free')
+dev.off()
+
+
+```
+
+
+### Plot occupancy patterns for each species
+
+```{r plot occupancy patterns}
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet <- read.csv("Results/Occupancy/033019/Wet_year1and2_withcovariates_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet)
+occupancy.prob.wet <- cbind(names, occupancy.prob.wet)
+row.names(occupancy.prob.wet) <- NULL
+
+occupancy.prob.dry <- read.csv("Results/Occupancy/033019/Dry_year1and2_withcovariates_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry)
+occupancy.prob.dry <- cbind(names, occupancy.prob.dry)
+row.names(occupancy.prob.dry) <- NULL
+
+occupancy.probCI.dry <- read.csv("Results/Occupancy/033019/Dry_year1and2_withcovariates_alphaCI.psi()p().csv")
+occupancy.probCI.dry <- transpose(occupancy.probCI.dry)
+occupancy.prob.dry <- cbind(occupancy.prob.dry, occupancy.probCI.dry)
+names(occupancy.prob.dry) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry$Season <- "dry"
+occupancy.prob.dry <- join(occupancy.prob.dry, Spp)
+occupancy.prob.dry$drymean <- occupancy.prob.dry$PsiMean
+
+occupancy.probCI.wet <- read.csv("Results/Occupancy/033019/Wet_year1and2_withcovariates_alphaCI.psi()p().csv")
+occupancy.probCI.wet <- transpose(occupancy.probCI.wet)
+occupancy.prob.wet <- cbind(occupancy.prob.wet, occupancy.probCI.wet)
+names(occupancy.prob.wet) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet <- join(occupancy.prob.wet, Spp)
+occupancy.prob.wet$Season <- "wet"
+occupancy.prob.wet$drymean <- occupancy.prob.dry$PsiMean
+
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet, occupancy.prob.dry)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName_Full <- reorder(occupancy.prob$CommName_Full, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/occupancy.prob.allspecies.pdf', width = 9, height = 5)
+ggplot(occupancy.prob, aes(x=CommName_Full, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(~ Diet, scales = 'free', space = "free_x") +
+  ylab("Mean Occupancy") +
+  xlab("Species")
+dev.off()
+
+## with 95% CI - LMH only
+pdf('Figures/Occupancy/occupancy.prob.lmh.pdf', width = 7, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName_Full, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  ylab("Mean Occupancy") +
+  xlab("Species")
+dev.off()
+
+# wrap by season
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName_Full, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName_Full, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Hempsen_water_dependence, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Water Dependence") +
+  ylab("Mean Occupancy") +
+  xlab("Species")
+dev.off()
+
+# plot means vs floodplain biomass
+pdf('Figures/Occupancy/occupancy.by.floodplain.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=Floodplain.pct, y=PsiMean, col = Season, fill = Season)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy by Floodplain Preference") +
+  facet_wrap(~Season) + 
+  theme(legend.title = element_blank())
+dev.off()
+
+# wrap by floodplain preference
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Floodplain, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Floodplain Preference") 
+
+```
+
+## Archive - other season combos
+
+#### Wet1+2 and Dry1+2 LMH (with covariates)
+
+Some issues with this—wet year 2 has huge CI for everything and I'm not sure why.
+
+```{r wet and dry with covariates}
+sppcov.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_withcovariates_species.csv")
+names(sppcov.wet) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_withcovariates_species.csv")
+names(sppcov.dry) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet <- join(sppcov.wet, Spp, by = "SppCode")
+sppcov.dry <- join(sppcov.dry, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet$Season <- "wet"
+sppcov.dry$Season <- "dry"
+sppcov <- rbind(sppcov.wet, sppcov.dry)
+
+# combine lion levels
+sppcov$Factor <- fct_collapse(sppcov$Factor, lion = c("lion.dry", "lion.wet"))
+
+# let's plot effects of each covariate
+# stick with LMH only, so it's more visible
+
+# fire frequency
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/fire.interval.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency") 
+dev.off()
+
+# lion
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/lion.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lion activity") 
+dev.off()
+
+# pans
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/panscon.250m.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "panscon.250m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density") 
+dev.off()
+
+# poaching
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/poaching.high.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "poaching.high" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching") 
+dev.off()
+
+# road distance
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/road.major.distance.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "road.major.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road") 
+dev.off()
+
+# settlement distance
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/settlement.distance.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "settlement.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to settlement") 
+dev.off()
+
+# termite mound density
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/termite.count.100m.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "termite.count.100m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density") 
+dev.off()
+
+# tree cover
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/tree.hansen.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover") 
+dev.off()
+
+# urema distance
+pdf('Figures/Occupancy/032819/Wet12_Dry12_LMH_withcovariates/urema.distance.pdf', width = 7, height = 5)
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema") 
+dev.off()
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_withcovariates_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet)
+occupancy.prob.wet <- cbind(names, occupancy.prob.wet)
+row.names(occupancy.prob.wet) <- NULL
+
+occupancy.prob.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_withcovariates_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry)
+occupancy.prob.dry <- cbind(names, occupancy.prob.dry)
+row.names(occupancy.prob.dry) <- NULL
+
+occupancy.probCI.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_withcovariates_alphaCI.psi()p().csv")
+occupancy.probCI.dry <- transpose(occupancy.probCI.dry)
+occupancy.prob.dry <- cbind(occupancy.prob.dry, occupancy.probCI.dry)
+names(occupancy.prob.dry) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry$Season <- "dry"
+occupancy.prob.dry <- join(occupancy.prob.dry, Spp)
+occupancy.prob.dry$drymean <- occupancy.prob.dry$PsiMean
+
+occupancy.probCI.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_withcovariates_alphaCI.psi()p().csv")
+occupancy.probCI.wet <- transpose(occupancy.probCI.wet)
+occupancy.prob.wet <- cbind(occupancy.prob.wet, occupancy.probCI.wet)
+names(occupancy.prob.wet) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet <- join(occupancy.prob.wet, Spp)
+occupancy.prob.wet$Season <- "wet"
+occupancy.prob.wet$drymean <- occupancy.prob.dry$PsiMean
+
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet, occupancy.prob.dry)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/032819/Wet12_Dry12_lmh_withcovariates/occupancy.prob.allspecies.pdf', width = 9, height = 5)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(~ Diet, scales = 'free', space = "free_x") 
+dev.off()
+
+## with 95% CI - LMH only
+pdf('Figures/Occupancy/032819/Wet12_Dry12_lmh_withcovariates/occupancy.prob.lmh.pdf', width = 7, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") 
+dev.off()
+
+# wrap by season
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/032819/Wet12_Dry12_lmh_withcovariates/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Hempsen_water_dependence, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Water Dependence") 
+dev.off()
+
+# wrap by floodplain preference
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Floodplain, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Floodplain Preference") 
+```
+
+#### Wet1+2 and Dry1+2 all species (Year as only covariate)
+
+```{r wet and dry all species}
+sppcov.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_species.csv")
+names(sppcov.wet) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_species.csv")
+names(sppcov.dry) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet <- join(sppcov.wet, Spp, by = "SppCode")
+sppcov.dry <- join(sppcov.dry, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet$Season <- "wet"
+sppcov.dry$Season <- "dry"
+sppcov <- rbind(sppcov.wet, sppcov.dry)
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet)
+occupancy.prob.wet <- cbind(names, occupancy.prob.wet)
+row.names(occupancy.prob.wet) <- NULL
+
+occupancy.prob.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry)
+occupancy.prob.dry <- cbind(names, occupancy.prob.dry)
+row.names(occupancy.prob.dry) <- NULL
+
+occupancy.probCI.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_alphaCI.psi()p().csv")
+occupancy.probCI.dry <- transpose(occupancy.probCI.dry)
+occupancy.prob.dry <- cbind(occupancy.prob.dry, occupancy.probCI.dry)
+names(occupancy.prob.dry) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry$Season <- "dry"
+occupancy.prob.dry <- join(occupancy.prob.dry, Spp)
+occupancy.prob.dry$drymean <- occupancy.prob.dry$PsiMean
+
+occupancy.probCI.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_alphaCI.psi()p().csv")
+occupancy.probCI.wet <- transpose(occupancy.probCI.wet)
+occupancy.prob.wet <- cbind(occupancy.prob.wet, occupancy.probCI.wet)
+names(occupancy.prob.wet) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet$Season <- "wet"
+occupancy.prob.wet <- join(occupancy.prob.wet, Spp)
+occupancy.prob.wet$drymean <- occupancy.prob.dry$PsiMean
+  
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet, occupancy.prob.dry)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/Wet12_Dry12_allspp_nocovariates/occupancy.prob.allspecies.pdf', width = 9, height = 5)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(~ Diet, scales = 'free') 
+dev.off()
+
+## with 95% CI - LMH only
+pdf('Figures/Occupancy/032819/Wet12_Dry12_allspp_nocovariates/occupancy.prob.allspecies.pdf', width = 7, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") 
+dev.off()
+
+# wrap by season
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/032819/Wet12_Dry12_allspp_nocovariates/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Hempsen_water_dependence, scales='free_x', space='free_x') +
+  labs(title = "Seasonal Occupancy by Water Dependence") 
+dev.off()
+
+# wrap by floodplain preference
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Floodplain, scales='free_x') +
+  labs(title = "Seasonal Occupancy by Floodplain") 
+```
+
+
+#### Wet1+2 and Dry1+2 LMH (Year as only covariate)
+
+Now, with model that has only LMH input.
+```{r wet and dry all species}
+sppcov.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_species.csv")
+names(sppcov.wet) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_species.csv")
+names(sppcov.dry) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet <- join(sppcov.wet, Spp, by = "SppCode")
+sppcov.dry <- join(sppcov.dry, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet$Season <- "wet"
+sppcov.dry$Season <- "dry"
+sppcov <- rbind(sppcov.wet, sppcov.dry)
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet)
+occupancy.prob.wet <- cbind(names, occupancy.prob.wet)
+row.names(occupancy.prob.wet) <- NULL
+
+occupancy.prob.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry)
+occupancy.prob.dry <- cbind(names, occupancy.prob.dry)
+row.names(occupancy.prob.dry) <- NULL
+
+occupancy.probCI.dry <- read.csv("Results/Occupancy/032819/Dry_year1and2_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.dry <- transpose(occupancy.probCI.dry)
+occupancy.prob.dry <- cbind(occupancy.prob.dry, occupancy.probCI.dry)
+names(occupancy.prob.dry) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry$Season <- "dry"
+occupancy.prob.dry <- join(occupancy.prob.dry, Spp)
+occupancy.prob.dry$drymean <- occupancy.prob.dry$PsiMean
+
+occupancy.probCI.wet <- read.csv("Results/Occupancy/032819/Wet_year1and2_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.wet <- transpose(occupancy.probCI.wet)
+occupancy.prob.wet <- cbind(occupancy.prob.wet, occupancy.probCI.wet)
+names(occupancy.prob.wet) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet$Season <- "wet"
+occupancy.prob.wet <- join(occupancy.prob.wet, Spp)
+occupancy.prob.wet$drymean <- occupancy.prob.dry$PsiMean
+
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet, occupancy.prob.dry)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/032819/Wet12_Dry12_lmh_nocovariates/occupancy.prob.lmh.pdf', width = 8, height = 5)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") 
+dev.off()
+
+
+# wrap by season
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/032819/Wet12_Dry12_lmh_nocovariates/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(~ Hempsen_water_dependence, scales='free_x', space = 'free_x') +
+  labs(title = "Seasonal Occupancy by Water Dependence") 
+dev.off()
+
+# wrap by floodplain preference
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_wrap(~ Floodplain, scales='free_x') +
+  labs(title = "Seasonal Occupancy by Floodplain") 
+```
+
+
+#### Wet1, Wet2, Dry1, Dry2 all species (separate models)
+
+```{r wet and dry with covariates}
+sppcov.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_species.csv")
+names(sppcov.wet1) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_species.csv")
+names(sppcov.dry1) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_species.csv")
+names(sppcov.wet2) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_species.csv")
+names(sppcov.dry2) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet1 <- join(sppcov.wet1, Spp, by = "SppCode")
+sppcov.dry1 <- join(sppcov.dry1, Spp, by = "SppCode")
+sppcov.wet2 <- join(sppcov.wet2, Spp, by = "SppCode")
+sppcov.dry2 <- join(sppcov.dry2, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet1$Season <- "wet"
+sppcov.dry1$Season <- "dry"
+sppcov.wet2$Season <- "wet"
+sppcov.dry2$Season <- "dry"
+sppcov.wet1$Year <- "Year1"
+sppcov.dry1$Year <- "Year1"
+sppcov.wet2$Year <- "Year2"
+sppcov.dry2$Year <- "Year2"
+
+sppcov <- rbind(sppcov.wet1, sppcov.dry1, sppcov.wet2, sppcov.dry2)
+
+# combine lion levels
+sppcov$Factor <- fct_collapse(sppcov$Factor, lion = c("lion.dry", "lion.wet"))
+
+# let's plot effects of each covariate
+# stick with LMH only, so it's more visible
+
+# fire frequency
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/fire.interval.pdf')
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# lion
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/lion.pdf')
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lion activity") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# pans
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/panscon.250m.pdf')
+ggplot(subset(sppcov, Factor == "panscon.250m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# poaching
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/poaching.pdf')
+ggplot(subset(sppcov, Factor == "poaching.high" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# road distance
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/road.major.distance.pdf')
+ggplot(subset(sppcov, Factor == "road.major.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# settlement distance
+#pdf('Figures/Occupancy/032819/Separatemodels_allspp/settlement.distance.pdf')
+#ggplot(subset(sppcov, Factor == "settlement.distance" & LMH =="yes"), aes(x=CommName, y=Mean, #col = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Distance to settlement") +
+#  facet_grid(Year ~ .)
+#dev.off()
+
+# termite mound density
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/termite.count.100m.pdf')
+ggplot(subset(sppcov, Factor == "termite.count.100m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# tree cover
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/tree.hansen.pdf')
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover") +
+  facet_grid(Year ~ .)
+dev.off()
+
+# urema distance
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/urema.distance.pdf')
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema") +
+  facet_grid(Year ~ .)
+dev.off()
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet1)
+occupancy.prob.wet1 <- cbind(names, occupancy.prob.wet1)
+row.names(occupancy.prob.wet1) <- NULL
+
+occupancy.prob.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry1)
+occupancy.prob.dry1 <- cbind(names, occupancy.prob.dry1)
+row.names(occupancy.prob.dry1) <- NULL
+
+occupancy.prob.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet2)
+occupancy.prob.wet2 <- cbind(names, occupancy.prob.wet2)
+row.names(occupancy.prob.wet2) <- NULL
+
+occupancy.prob.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry2)
+occupancy.prob.dry2 <- cbind(names, occupancy.prob.dry2)
+row.names(occupancy.prob.dry2) <- NULL
+
+occupancy.probCI.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_alphaCI.psi()p().csv")
+occupancy.probCI.dry1 <- transpose(occupancy.probCI.dry1)
+occupancy.prob.dry1 <- cbind(occupancy.prob.dry1, occupancy.probCI.dry1)
+names(occupancy.prob.dry1) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry1$Season <- "dry"
+occupancy.prob.dry1$Year <- "Year1"
+occupancy.prob.dry1 <- join(occupancy.prob.dry1, Spp)
+occupancy.prob.dry1$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_alphaCI.psi()p().csv")
+occupancy.probCI.wet1 <- transpose(occupancy.probCI.wet1)
+occupancy.prob.wet1 <- cbind(occupancy.prob.wet1, occupancy.probCI.wet1)
+names(occupancy.prob.wet1) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet1 <- join(occupancy.prob.wet1, Spp)
+occupancy.prob.wet1$Season <- "wet"
+occupancy.prob.wet1$Year <- "Year1"
+occupancy.prob.wet1$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_alphaCI.psi()p().csv")
+occupancy.probCI.dry2 <- transpose(occupancy.probCI.dry2)
+occupancy.prob.dry2 <- cbind(occupancy.prob.dry2, occupancy.probCI.dry2)
+names(occupancy.prob.dry2) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry2$Season <- "dry"
+occupancy.prob.dry2$Year <- "Year2"
+occupancy.prob.dry2 <- join(occupancy.prob.dry2, Spp)
+occupancy.prob.dry2$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_alphaCI.psi()p().csv")
+occupancy.probCI.wet2 <- transpose(occupancy.probCI.wet2)
+occupancy.prob.wet2 <- cbind(occupancy.prob.wet2, occupancy.probCI.wet2)
+names(occupancy.prob.wet2) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet2 <- join(occupancy.prob.wet2, Spp)
+occupancy.prob.wet2$Season <- "wet"
+occupancy.prob.wet2$Year <- "Year2"
+occupancy.prob.wet2$drymean <- occupancy.prob.dry1$PsiMean
+
+
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet1, occupancy.prob.dry1, occupancy.prob.wet2, occupancy.prob.dry2)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/occupancy.prob.allspecies.pdf', width = 12, height = 9)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(Year ~ Diet, scales = 'free', space = "free_x") 
+dev.off()
+
+## with 95% CI - LMH only
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/occupancy.prob.lmh.pdf', width = 7, height = 7)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(Year ~ ., scales = 'free', space = "free_x") 
+dev.off()
+
+# wrap by season
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/032819/Separatemodels_allspp/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Hempsen_water_dependence, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Water Dependence") 
+dev.off()
+
+# wrap by floodplain preference
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Floodplain, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Floodplain Preference") 
+```
+
+#### Wet1, Wet2, Dry1, Dry2 LMH (separate models)
+
+For some reason, the wet season LMH-only model has HUGE confidence intervals around both occupancy and covariate estimates. Not sure why—it isn't the case for any of the other models (including all spp).
+
+```{r wet and dry with covariates}
+sppcov.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_LMH_species.csv")
+names(sppcov.wet1) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_LMH_species.csv")
+names(sppcov.dry1) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_LMH_species.csv")
+names(sppcov.wet2) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_LMH_species.csv")
+names(sppcov.dry2) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet1 <- join(sppcov.wet1, Spp, by = "SppCode")
+sppcov.dry1 <- join(sppcov.dry1, Spp, by = "SppCode")
+sppcov.wet2 <- join(sppcov.wet2, Spp, by = "SppCode")
+sppcov.dry2 <- join(sppcov.dry2, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet1$Season <- "wet"
+sppcov.dry1$Season <- "dry"
+sppcov.wet2$Season <- "wet"
+sppcov.dry2$Season <- "dry"
+sppcov.wet1$Year <- "Year1"
+sppcov.dry1$Year <- "Year1"
+sppcov.wet2$Year <- "Year2"
+sppcov.dry2$Year <- "Year2"
+
+sppcov <- rbind(sppcov.wet1, sppcov.dry1, sppcov.wet2, sppcov.dry2)
+
+# combine lion levels
+sppcov$Factor <- fct_collapse(sppcov$Factor, lion = c("lion.dry", "lion.wet"))
+
+# let's plot effects of each covariate
+# stick with LMH only, so it's more visible
+
+# fire frequency
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/fire.interval.pdf')
+ggplot(subset(sppcov, Factor == "fire.interval" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# lion
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/lion.pdf')
+ggplot(subset(sppcov, Factor == "lion" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lion activity") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# pans
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/panscon.250m.pdf')
+ggplot(subset(sppcov, Factor == "panscon.250m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# poaching
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/poaching.pdf')
+ggplot(subset(sppcov, Factor == "poaching.high" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# road distance
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/road.major.distance.pdf')
+ggplot(subset(sppcov, Factor == "road.major.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# settlement distance
+#pdf('Figures/Occupancy/032819/Separatemodels_lmh/settlement.distance.pdf')
+#ggplot(subset(sppcov, Factor == "settlement.distance" & LMH =="yes"), aes(x=CommName, y=Mean, #col = Season)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Distance to settlement") +
+#  facet_grid(Year ~ .)
+#dev.off()
+
+# termite mound density
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/termite.count.100m.pdf')
+ggplot(subset(sppcov, Factor == "termite.count.100m" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# tree cover
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/tree.hansen.pdf')
+ggplot(subset(sppcov, Factor == "tree.hansen" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+# urema distance
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/urema.distance.pdf')
+ggplot(subset(sppcov, Factor == "urema.distance" & LMH =="yes"), aes(x=CommName, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema") +
+  facet_grid(Year ~ ., scales='free_y')
+dev.off()
+
+#### OCCUPANCY PATTERNS BY SEASON
+
+occupancy.prob.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet1)
+occupancy.prob.wet1 <- cbind(names, occupancy.prob.wet1)
+row.names(occupancy.prob.wet1) <- NULL
+
+occupancy.prob.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry1)
+occupancy.prob.dry1 <- cbind(names, occupancy.prob.dry1)
+row.names(occupancy.prob.dry1) <- NULL
+
+occupancy.prob.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.wet2)
+occupancy.prob.wet2 <- cbind(names, occupancy.prob.wet2)
+row.names(occupancy.prob.wet2) <- NULL
+
+occupancy.prob.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_LMH_alphaspsi()p().csv")
+names <- row.names(occupancy.prob.dry2)
+occupancy.prob.dry2 <- cbind(names, occupancy.prob.dry2)
+row.names(occupancy.prob.dry2) <- NULL
+
+occupancy.probCI.dry1 <- read.csv("Results/Occupancy/032819/Dry_year1_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.dry1 <- transpose(occupancy.probCI.dry1)
+occupancy.prob.dry1 <- cbind(occupancy.prob.dry1, occupancy.probCI.dry1)
+names(occupancy.prob.dry1) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry1$Season <- "dry"
+occupancy.prob.dry1$Year <- "Year1"
+occupancy.prob.dry1 <- join(occupancy.prob.dry1, Spp)
+occupancy.prob.dry1$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.wet1 <- read.csv("Results/Occupancy/032819/Wet_year1_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.wet1 <- transpose(occupancy.probCI.wet1)
+occupancy.prob.wet1 <- cbind(occupancy.prob.wet1, occupancy.probCI.wet1)
+names(occupancy.prob.wet1) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet1 <- join(occupancy.prob.wet1, Spp)
+occupancy.prob.wet1$Season <- "wet"
+occupancy.prob.wet1$Year <- "Year1"
+occupancy.prob.wet1$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.dry2 <- read.csv("Results/Occupancy/032819/Dry_year2_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.dry2 <- transpose(occupancy.probCI.dry2)
+occupancy.prob.dry2 <- cbind(occupancy.prob.dry2, occupancy.probCI.dry2)
+names(occupancy.prob.dry2) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.dry2$Season <- "dry"
+occupancy.prob.dry2$Year <- "Year2"
+occupancy.prob.dry2 <- join(occupancy.prob.dry2, Spp)
+occupancy.prob.dry2$drymean <- occupancy.prob.dry1$PsiMean
+
+occupancy.probCI.wet2 <- read.csv("Results/Occupancy/032819/Wet_year2_LMH_alphaCI.psi()p().csv")
+occupancy.probCI.wet2 <- transpose(occupancy.probCI.wet2)
+occupancy.prob.wet2 <- cbind(occupancy.prob.wet2, occupancy.probCI.wet2)
+names(occupancy.prob.wet2) <- c("SppCode", "PsiMean", "PsiLCI", "Psi10", "Psi50", "Psi90", "PsiUCI")
+occupancy.prob.wet2 <- join(occupancy.prob.wet2, Spp)
+occupancy.prob.wet2$Season <- "wet"
+occupancy.prob.wet2$Year <- "Year2"
+occupancy.prob.wet2$drymean <- occupancy.prob.dry1$PsiMean
+
+
+# merge
+occupancy.prob <- rbind(occupancy.prob.wet1, occupancy.prob.dry1, occupancy.prob.wet2, occupancy.prob.dry2)
+
+### OCCUPANCY PROBABILITY
+
+occupancy.prob$CommName <- reorder(occupancy.prob$CommName, occupancy.prob$drymean)
+
+## with 95% CI
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/occupancy.prob.lmh.pdf', width = 12, height = 9)
+ggplot(occupancy.prob, aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  labs(title = "Seasonal Occupancy") +
+  facet_grid(Year ~ ., scales = 'free', space = "free_x") 
+dev.off()
+
+# wrap by season
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Season) +
+  labs(title = "Seasonal Occupancy") 
+
+# wrap by water dependence
+pdf('Figures/Occupancy/032819/Separatemodels_lmh/occupancy.prob.lmh.waterdependence.pdf', width = 8, height = 5)
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Hempsen_water_dependence, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Water Dependence") 
+dev.off()
+
+# wrap by floodplain preference
+ggplot(subset(occupancy.prob, LMH == "yes"), aes(x=CommName, y=PsiMean, col = Season)) + 
+  geom_errorbar(aes(ymin = PsiLCI, ymax = PsiUCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  facet_grid(Year ~ Floodplain, scales='free_x', space = "free_x") +
+  labs(title = "Seasonal Occupancy by Floodplain Preference") 
+```

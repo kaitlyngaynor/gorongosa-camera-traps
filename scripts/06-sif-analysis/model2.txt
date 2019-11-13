@@ -1,0 +1,20 @@
+model {
+  # Specify uninformative priors for detection and occupancy parameters
+  pA ~ dunif(0, 1)
+  pB ~ dunif(0, 1)
+  psiA ~ dunif(0, 1) 
+  psiBA ~ dunif(0, 1)
+  psiBa ~ dunif(0, 1)
+  # Derive the unconditional occupancy probability for species B 
+  psiB <- psiA * psiBA + (1 - psiA) * psiBa
+  for (i in 1:n){	# n is the number of sites within a study area
+    zA[i] ~ dbern(psiA)	    # Model the true occurrence state for species A
+    PSIB[i] <- zA[i] * psiBA + (1 - zA[i]) * psiBa
+    zB[i] ~ dbern(PSIB[i])    # Model the true occurrence state for species B
+    # Probability of observing a species given its true occurrence state and estimated # detection probability
+    yA[i] ~ dbin(zA[i] * pA, N[i])  	# N is the total number of trap days
+    yB[i] ~ dbin(zB[i] * pB, N[i]) 	
+  }
+  # Derive the species interaction factor
+  SIF <-  psiA * psiBA / (psiA * (psiA * psiBA + (1 - psiA) * psiBa))
+}

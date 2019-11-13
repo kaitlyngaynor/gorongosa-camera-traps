@@ -1,0 +1,396 @@
+---
+title: "Spiral horned antelope"
+author: "Kaitlyn Gaynor"
+date: "8/23/2019"
+output: 
+  html_document:
+    theme: cosmo
+editor_options:
+  chunk_output_type: console
+---
+
+### Summary of camera trap data from 2016-2018 for the Tragelaphine antelope
+
+I measured species distribution in two ways:
+
+* RAI = Relative Activity Index. This is a simple measure of the number of independent camera trap detections per trap-night. Even though it is very simple, I kind of think it's the better approach
+
+* Occupancy = a presence/absence measure. This was a multi-species model, in which covariates for each species were drawn from a normally-distributed  community-level hyper-parameter (Rich et al. 2016). I think this is a less meaningful approach for common species, like bushbuck, which are present pretty much everywhere
+For more details on both of these, see the methods of my dissertation chapter.
+
+The figures below show the model coefficients for each spatial covariate (for RAI models, I took a model-averaging approach). I showed the same thing in two different ways: the first set of figures facilitate comparison between species; the second, between seasons.
+
+Again, the details of the source data for each covariate are described in the supplementary materials of my dissertation chapter.
+
+Note:
+Dry season = December - March
+Wet season = July - September
+
+
+```{r setup, echo = FALSE, message = FALSE}
+setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+
+library(ggplot2)
+library(plyr)
+library(rgdal)
+library(broom)
+library(raster)
+library(data.table)
+library(forcats)
+
+## Wet1+2 and Dry1+2 all species (with covariates)
+# some of this code isn't necessary; just copied over from the analyses of all species
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+
+sppcov.wet <- read.csv("Results/Occupancy/033019/Wet_year1and2_withcovariates_species.csv")
+names(sppcov.wet) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+sppcov.dry <- read.csv("Results/Occupancy/033019/Dry_year1and2_withcovariates_species.csv")
+names(sppcov.dry) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+
+# join the model output and trait information
+sppcov.wet <- join(sppcov.wet, Spp, by = "SppCode")
+sppcov.dry <- join(sppcov.dry, Spp, by = "SppCode")
+
+# add season, and then combine
+sppcov.wet$Season <- "wet"
+sppcov.dry$Season <- "dry"
+sppcov <- rbind(sppcov.wet, sppcov.dry)
+
+# combine lion levels
+sppcov$Factor <- fct_collapse(sppcov$Factor, lion = c("lion.dry", "lion.wet"))
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+# read in RAI results
+averaged.results.combined.df2 <- read.csv('Results/RAI/averaged.results.combined.df2.csv')
+```
+
+#### Coefficients for all three species, for each season
+```{r better plots, echo = FALSE}
+ggplot(subset(averaged.results.combined.df2, GenusLatin =="Tragelaphus" & Season == "dry"), aes(x=Covariate, y=Estimate, col = CommName_Full)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "RAI coefficients (dry season)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, GenusLatin =="Tragelaphus" & Season == "dry"), aes(x=Factor, y=Mean, col = CommName_Full)) + 
+  geom_errorbar(aes(ymin = LCI, ymax = UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Occupancy coefficients (dry season)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(averaged.results.combined.df2, GenusLatin =="Tragelaphus" & Season == "wet"), aes(x=Covariate, y=Estimate, col = CommName_Full)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "RAI coefficients (wet season)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, GenusLatin =="Tragelaphus" & Season == "wet"), aes(x=Factor, y=Mean, col = CommName_Full)) + 
+  geom_errorbar(aes(ymin = LCI, ymax = UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Occupancy coefficients (wet season)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+```
+
+#### Coefficients for each season, for each species
+```{r better plots2, echo = FALSE}
+ggplot(subset(averaged.results.combined.df2, CommName_Full =="Bushbuck"), aes(x=Covariate, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "RAI coefficients - Bushbuck") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, CommName_Full == "Bushbuck"), aes(x=Factor, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin = LCI, ymax = UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Occupancy coefficients - Bushbuck") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(averaged.results.combined.df2, CommName_Full =="Nyala"), aes(x=Covariate, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "RAI coefficients - Nyala") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, CommName_Full == "Nyala"), aes(x=Factor, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin = LCI, ymax = UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Occupancy coefficients - Nyala") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(averaged.results.combined.df2, CommName_Full =="Kudu"), aes(x=Covariate, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "RAI coefficients - Kudu") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, CommName_Full == "Kudu"), aes(x=Factor, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin = LCI, ymax = UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Occupancy coefficients - Kudu") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+```
+
+```{r plots, eval = FALSE, echo = FALSE}
+# plot covariate effects
+
+## Fire frequency
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "fire.interval" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Fire frequency & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "fire.interval" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Lion density
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "lion" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, space = "free_x", scales = "free_x") +
+  labs(title = "Lions & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "lion" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lions & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Pan density
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "panscon.250m" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "panscon.250m" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Pan density & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Poaching
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "poaching" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "poaching" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Distance to road
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "road.major.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, scales = "free_x", space = "free_x") +
+  labs(title = "Roads & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "road.major.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Roads & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Distance to river
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "river.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, scales = "free_x", space = "free_x") +
+  labs(title = "Rivers & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "river.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Rivers & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Termite mound density
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "termite.count.100m" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, scales = "free_x", space = "free_x") +
+  labs(title = "Termite mound density & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "termite.count.100m" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Tree cover
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "tree.hansen" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, scales = "free_x", space = "free_x") +
+  labs(title = "Tree cover & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "tree.hansen" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## Distance to Lake Urema
+
+ggplot(subset(averaged.results.combined.df2, Covariate == "urema.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Estimate, col = Season)) + 
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  facet_grid(~Hempsen_category, scales = "free_x", space = "free_x") +
+  labs(title = "Lake Urema & RAI", tag = "A)") +
+  xlab("Species") +
+  ylab("Model-Averaged Coefficient")
+
+ggplot(subset(sppcov, Factor == "urema.distance" & GenusLatin =="Tragelaphus"), aes(x=CommName_Full, y=Mean, col = Season)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Lake Urema & occupancy", tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+```
+
+#### Mapping model output
+
+Here are maps of Relative Activity Index in the camera trap grid, based on model output.
+
+```{r mapping model output, echo = FALSE}
+bushbuck_dry_raster <- raster('bushbuck_dry_raster.tif')
+plot(bushbuck_dry_raster, main = "Bushbuck Dry Season")
+
+bushbuck_wet_raster <- raster('bushbuck_wet_raster.tif')
+plot(bushbuck_wet_raster, main = "Bushbuck Wet Season")
+
+nyala_dry_raster <- raster('nyala_dry_raster.tif')
+plot(nyala_dry_raster, main = "Nyala Dry Season")
+
+nyala_wet_raster <- raster('nyala_wet_raster.tif')
+plot(nyala_wet_raster, main = "Nyala Wet Season")
+
+kudu_dry_raster <- raster('kudu_dry_raster.tif')
+plot(kudu_dry_raster, main = "Kudu Dry Season")
+
+kudu_wet_raster <- raster('kudu_wet_raster.tif')
+plot(kudu_wet_raster, main = "Kudu Wet Season")
+```
+
+The wet season kudu map is kind of useless, because none of the covariates in the model were very important.
+
