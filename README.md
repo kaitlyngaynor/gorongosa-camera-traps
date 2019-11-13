@@ -59,9 +59,7 @@ A lot of these data cleaning scripts were written during my dissertation and use
 
 ### 5. Temporal data analysis scripts
 
-**01-temporal-overlap.R**: Calculates pairwise temporal (24-hr) overlap between all pairs of species, using overlap package.
-* Input - record table
-* Output - long data matrix with pairwise overlap values for all 703 species pairs, with columns for overlap in dry, wet3mo, and wet4mo seasons
+**01-temporal-overlap.R**: Calculates pairwise temporal (24-hr) overlap between all pairs of species, using overlap package. Input is record table, and outputs long data matrix with pairwise overlap values for all 703 species pairs, with columns for overlap in dry, wet3mo, and wet4mo seasons
 
 ### 6. Species Interaction Factor analysis scripts
 
