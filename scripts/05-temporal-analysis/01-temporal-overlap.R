@@ -1,7 +1,7 @@
 # Temporal overlap analysis
 
 # set working directory
-setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+library(here)
 
 # load libraries
 library(overlap)
@@ -24,7 +24,7 @@ start.date.wet.year2 <- as.Date("12/1/17", format = "%m/%d/%y")
 end.date.wet.year2 <- as.Date("3/31/18", format = "%m/%d/%y")
 
 # import record table
-records <- read.csv("Data/Raw Data/recordtable_year1and2_15min.csv")
+records <- read_csv(here::here('data', 'raw-data', 'recordtable_year1and2_15min.csv'))
 
 ##################################################################################################
 #  Format and scale times
@@ -52,7 +52,7 @@ records$Time.Sun <- sunTime(records$Time.Radians, records$Date, Coords)
 ##################################################################################################
 
 # bring in species traits
-species <- read.csv("Data/2018spp_kingdon.csv")
+species <- read_csv(here::here('data', '2018spp_kingdon.csv'))
 
 # only lmh and lion
 species <- species[species$LMH == "yes" | species$CommName == "Lion",]
@@ -76,7 +76,7 @@ records.dry.year1and2 <- rbind(records.dry.year1, records.dry.year2)
 records.wet.year1and2 <- rbind(records.wet.year1, records.wet.year2)
 
 # bring in list of all pairwise relationships (generated previously for SIF models)
-pairs <- read.csv("Data/SIF/fewer_cameras/Dry.peak.SppPairs.csv")
+pairs <- read_csv(here::here('data', 'sif', 'fewer_cameras', 'Dry.peak.SppPairs.csv'))
 
 # subset to only LMH species (couldn't figure out a more elegant way to do this)
 pairs <- subset(pairs, SppCode1 == "AEME" | SppCode1 == "ALBU" | SppCode1 == "CENA" | SppCode1 == "COTA" | SppCode1 == "HIAM"
@@ -126,7 +126,7 @@ for (i in 1:nrow(pairs)) {
 }
 
 # export overlap
-write.csv(pairs, "Results/Overlap_temporal_031919.csv", row.names=F)
+write.csv(pairs, here::here('results', 'Overlap_temporal_031919.csv'), row.names=F)
 
 # note that if there are too few records for either species (not sure exactly what cut-off is), overlap will be NA
 
