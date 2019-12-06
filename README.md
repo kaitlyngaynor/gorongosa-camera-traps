@@ -4,7 +4,7 @@
 
 A lot of these data cleaning scripts were written during my dissertation and use outdated file paths, naming conventions, etc. I haven't gone back and changed them, since I haven't done additional data cleaning but rather used the cleaned data in subsequent analyses.
 
-**01-timeshift**: Change date and time metadata associated with image files; to do before generating record table in camtrapR. Input is a spreadsheet with the time corrections for all camera folders that must be edited
+**01-timeshift**: Change date and time metadata associated with image files; to do before generating record table in camtrapR. Input is a spreadsheet with the time corrections for all camera folders that must be edited. (Also associated timeshift files for WildCam data cleaning in December 2019)
 
 **02-create-record-table-year1** and **02a-create-record-table-year2**: Generate record table from raw photos that have been sorted into folders by species (used in many of the scripts below); generate species-specific detection matrices for later use in Occupancy_matrix_wrangling.Rmd
 
