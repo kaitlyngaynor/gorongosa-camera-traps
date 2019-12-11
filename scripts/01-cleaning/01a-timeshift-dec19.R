@@ -7,7 +7,8 @@ library(camtrapR)
 library(tidyverse)
 
 # old file - uses previous file names, now lives in archives
-timeShiftTable <- read.csv("timeshift_to_apply.csv", header=T)
+#timeShiftTable <- read.csv("timeshift_to_apply_D05.csv", header=T)
+timeShiftTable <- read.csv("timeshift_to_apply_B07.csv", header=T)
 
 # first generate record table with the INCORRECT times
 database_wrong <- recordTable(inDir = "To_fix",        ## folder with the camera folders in it
@@ -35,6 +36,8 @@ database_correct <- recordTable(inDir = "To_fix",        ## folder with the came
                               writecsv = TRUE,          ## exports file
                               removeDuplicateRecords = FALSE)    ## doesn't delete duplicate files
 
+head(database_wrong)
+head(database_correct)
 
 # merge the two together
 database_wrong <- dplyr::select(database_wrong, Camera, DateTimeOriginal, FileName)
@@ -44,4 +47,5 @@ database <- left_join(database_wrong, database_correct)
 
 
 
-write.csv(database, "wildcam_corrected_times.csv", row.names = FALSE)
+#write.csv(database, "wildcam_corrected_times_D05.csv", row.names = FALSE)
+write.csv(database, "wildcam_corrected_times_B07.csv", row.names = FALSE)
