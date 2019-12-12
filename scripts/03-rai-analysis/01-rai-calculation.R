@@ -23,7 +23,6 @@ camera.operation <- read.csv("R/Data/Camera_operation_years1and2.csv", header=T)
 record.table <- join(record.table, camera.operation) # join by camera
 
 # get the dates into date format
-# I tried this as a loop and it didn't work? hmph
 record.table$Date <- as.Date(record.table$Date, format = "%m/%d/%y")
 record.table$Start <- as.Date(record.table$Start, format = "%m/%d/%y")
 record.table$End <- as.Date(record.table$End, format = "%m/%d/%y")
@@ -33,6 +32,13 @@ record.table$Problem2_from <- as.Date(record.table$Problem2_from, format = "%m/%
 record.table$Problem2_to <- as.Date(record.table$Problem2_to, format = "%m/%d/%y")
 record.table$Problem3_from <- as.Date(record.table$Problem3_from, format = "%m/%d/%y")
 record.table$Problem3_to <- as.Date(record.table$Problem3_to, format = "%m/%d/%y")
+
+# alternatively, could have done this with mutate_at (added 11-Dec-19 during Shiny app development)
+
+# record.table <- join(record.table, camera.operation) %>%
+#  mutate_at(c("Date", "Start", "End", "Problem1_from", "Problem1_to",
+#              "Problem2_from", "Problem2_to", "Problem3_from", "Problem3_to"),
+#            ~as.Date(., format = "%m/%d/%y"))
 
 # takes super long time to run
 # make a progress bar
@@ -83,6 +89,7 @@ Camop.wet4mo.year1 <- read.csv("R/Data/Cleaned_occupancy_records/Camoperation_12
 Camop.dry.year2 <- read.csv("R/Data/Cleaned_occupancy_records/Camoperation_7_1_17_9_30_17.csv")
 Camop.wet3mo.year2 <- read.csv("R/Data/Cleaned_occupancy_records/Camoperation_1_1_18_3_31_18.csv")
 Camop.wet4mo.year2 <- read.csv("R/Data/Cleaned_occupancy_records/Camoperation_12_1_17_3_31_18.csv")
+
 
 # set start and end date of interest
 # ONLY RUN THE DATES I WANT!
