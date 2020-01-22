@@ -6,7 +6,8 @@ library(tidyverse)
 setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/Github Repos/gorongosa-camera-traps")
 
 # old file - uses previous file names, now lives in archives
-timeShiftTable <- read.csv("data/timeshift-archives/timeshift_012020.csv", header=T)
+#timeShiftTable <- read.csv("data/timeshift-archives/timeshift_012020.csv", header=T)
+timeShiftTable <- read.csv("data/timeshift-archives/timeshift_012120.csv", header=T)
 
 
 # set wd to wherever the camera trap images live
