@@ -1,0 +1,2184 @@
+---
+title: "Occupancy modeling results for aerial count period"
+author: "Kaitlyn Gaynor"
+date: "9/6/2018"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+editor_options:
+  chunk_output_type: console
+---
+
+Ran models in 01-occupancy-models.Rmd
+Here, exploring model output (after a bit of data file editing to get the column names in the appropriate place - couldn't figure out how to do in model code for some reason and didn't try super hard)
+
+```{r setup}
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(plyr)
+
+library(here)
+```
+
+# Group = body size
+
+#### Species occupancy
+
+```{r species occupancy}
+alpha <- read.csv('Results/Occupancy/Aerial_bysize/Aerial_alphaspsi()p().csv')
+
+alpha.ci <- read.csv('Results/Occupancy/Aerial_bysize/Aerial_alphaCI.psi()p().csv') %>% t() # transpose as it's read in
+
+alpha <- cbind(alpha, alpha.ci) %>% rownames_to_column(var = "SppCode") # merge the alphas with the confidence intervals and change row names into first column
+
+names(alpha) <- c("SppCode", "alpha_occupancy", "alpha_025", "alpha_10", "alpha_50", "alpha_90", "alpha_975") # change names to match code
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+alpha <- join(alpha, Spp, by = "SppCode")
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+alpha$CommName <- reorder(alpha$CommName, alpha$alpha_occupancy)
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy, colour=Diet)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  xlab("Species") +
+  ylab("Occupancy Probability")
+
+```
+
+
+#### Factors associated with species richness
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial_bysize/Aerial_spprich.csv')
+
+# bring in associated site metadata
+site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs termite mound count
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs poaching
+ggplot(site.richness, aes(x = as.factor(poaching.high), y = Mean)) + 
+  geom_boxplot()
+
+# plot species richness vs road distance
+ggplot(site.richness, aes(x = road.major.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs Urema distance
+ggplot(site.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs tree cover
+ggplot(site.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs river distance
+ggplot(site.richness, aes(x = river.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+## Group richness
+
+```{r group richness covariates}
+group.richness <- read.csv('Results/Occupancy/Aerial_bysize/Aerial_grouprich.csv')
+
+# split StudySite into two columns - currently has study site and group ex. A06_Carnivore
+library(stringr)
+split <- str_split_fixed(group.richness$StudySite, "_", 2)
+names(split) <- c("StudySite", "Group")
+group.richness <- cbind(split, group.richness[,c(2:5)])
+names(group.richness) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI")
+
+# bring in all species richness as a comparison
+site.richness <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_spprich.csv')
+site.richness$Group <- "All"
+
+group.richness <- bind_rows(group.richness, site.richness) 
+
+# bring in site metadata
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') %>% dplyr::select('StudySite', 'fire.interval', 'urema.distance', 'road.distance', 'termite.count.100m', 'poaching.high')
+# TO DO: need to extract tree.hansen not normalized!
+site.metadata.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'tree.hansen')
+site.metadata <- left_join(site.metadata, site.metadata.norm)
+
+group.richness <- left_join(group.richness, site.metadata)
+
+ggplot(group.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap( ~ Group, scales = 'free_y')
+
+ggplot(group.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = road.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+group.richness$poaching.factor <- as.factor(site.richness$poaching.high)
+levels(group.richness$poaching.factor) <- c("Low", "High")
+ggplot(group.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Poaching") +
+  ylab("Species Richness") +  
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+
+# another version where the data have been gathered
+group.richness2 <- group.richness
+names(group.richness2) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI", "Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Poaching", "Tree Cover")
+group.richness2 <- group.richness2 %>% gather("Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Poaching", "Tree Cover", key = "Factor", value = "Factor_value")
+
+ggplot(group.richness2, aes(x = Factor_value, y = Mean, col = Group)) +  
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  geom_point() + 
+  xlab("Covariate Value") +
+  ylab("Species Richness") +  
+  theme_bw() + theme(legend.position = "none") +
+  facet_grid(Group ~ Factor, scales = 'free') 
+```
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial_bysize/Aerial_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+ggplot(subset(sppcov, Factor == "fire.interval"), aes(x=CommName_Full, y=Mean)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching.high")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+## RIVER DISTANCE
+
+sppcov.river <- subset(sppcov, Factor == "river.distance")
+sppcov.river$CommName_Full <- reorder(sppcov.river$CommName_Full, sppcov.river$Mean)
+
+ggplot(sppcov.river, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "River distance & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+#
+### PAN DENSITY
+#
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+#
+#
+#
+### LION ACTIVITY
+#
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = Mass_category)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```
+
+## Group covariate associations
+
+```{r group covariates}
+# termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen, panscon.250m, lion.dry
+
+grpcov <- read.csv("Results/Occupancy/Aerial_bysize/Aerial_group.csv")
+
+# change factor orders so they are in ascending size order
+grpcov$Group <- factor(grpcov$Group, levels = c("Small", "Medium", "Large", "Very_large"))
+
+### Plot effects of each covariate
+
+ggplot(grpcov, aes(x=Factor, y=Mean, col = Group)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Occupancy covariates") +
+  xlab("Covariate") +
+  ylab("Beta Coefficient")
+
+```
+
+# Group = diet classification
+
+#### Species occupancy
+
+```{r species occupancy}
+alpha <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_alphaspsi()p().csv')
+
+alpha.ci <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_alphaCI.psi()p().csv') %>% t() # transpose as it's read in
+
+alpha <- cbind(alpha, alpha.ci) %>% rownames_to_column(var = "SppCode") # merge the alphas with the confidence intervals and change row names into first column
+
+names(alpha) <- c("SppCode", "alpha_occupancy", "alpha_025", "alpha_10", "alpha_50", "alpha_90", "alpha_975") # change names to match code
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+alpha <- plyr::join(alpha, Spp, by = "SppCode")
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+alpha$CommName <- reorder(alpha$CommName, alpha$alpha_occupancy)
+
+## barplot
+
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy, colour=Diet)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  xlab("Species") +
+  ylab("Occupancy Probability")
+
+```
+
+
+
+#### Factors associated with species richness
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_spprich.csv')
+
+# bring in associated site metadata
+site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs termite mound count
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs poaching
+ggplot(site.richness, aes(x = as.factor(poaching), y = Mean)) + 
+  geom_boxplot()
+
+ggplot(site.richness, aes(x = poaching, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs road distance
+ggplot(site.richness, aes(x = road.major.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs Urema distance
+ggplot(site.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs tree cover
+ggplot(site.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+## Group richness
+
+```{r group richness covariates}
+group.richness <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_grouprich.csv')
+
+# split StudySite into two columns - currently has study site and group ex. A06_Carnivore
+library(stringr)
+split <- str_split_fixed(group.richness$StudySite, "_", 2)
+names(split) <- c("StudySite", "Group")
+group.richness <- cbind(split, group.richness[,c(2:5)])
+names(group.richness) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI")
+
+# bring in all species richness as a comparison
+site.richness <- read.csv('Results/Occupancy/Aerial_bydiet/Aerial_spprich.csv')
+site.richness$Group <- "All"
+
+group.richness <- bind_rows(group.richness, site.richness) 
+
+
+# bring in site metadata
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') %>% dplyr::select('StudySite', 'fire.interval', 'urema.distance', 'road.distance', 'termite.count.100m')
+
+# need to pull in poaching covarites from the .norm file; I hadn't extracted the non-normalized, but it doesn't matter since it's a factor
+site.metadata.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'poaching')
+site.metadata <- left_join(site.metadata, site.metadata.norm)
+
+# also need to pull in Hansen tree cover from a separate file
+site.hansen <- read.csv('Data/cam_metadata_hansenraw_091719.csv') %>% dplyr::select('StudySite', 'raster.values.hansen')
+site.metadata <- left_join(site.metadata, site.hansen)
+
+
+group.richness <- left_join(group.richness, site.metadata)
+
+ggplot(group.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap( ~ Group, scales = 'free_y')
+
+ggplot(group.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = road.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+group.richness$poaching.factor <- as.factor(group.richness$poaching)
+levels(group.richness$poaching.factor) <- c("Low", "Medium", "High")
+pdf('Figures/Aerial/richness_poaching_diet.pdf', useDingbats = FALSE)
+ggplot(group.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Poaching") +
+  ylab("Species Richness") +  
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+dev.off()
+
+# another version where the data have been gathered
+group.richness2 <- group.richness
+names(group.richness2) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI", "Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Illegal Hunting", "Tree Cover")
+group.richness2 <- group.richness2 %>% gather("Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Illegal Hunting", "Tree Cover", key = "Factor", value = "Factor_value")
+
+pdf('Figures/Aerial/richness_all.pdf', width = 12, height = 8, useDingbats = FALSE)
+ggplot(group.richness2, aes(x = Factor_value, y = Mean, col = Group)) +  
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  geom_point() + 
+  xlab("Covariate Value") +
+  ylab("Species Richness") +  
+  theme_bw() + theme(legend.position = "none") +
+  facet_grid(Group ~ Factor, scales = 'free') +
+  scale_color_manual(values=c("black", "#F8766D", "#00BA38", "#619CFF"))
+dev.off()
+```
+
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial_bydiet/Aerial_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- plyr::join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+#ggplot(subset(sppcov, Factor == "fire.interval"), aes(x=CommName_Full, y=Mean)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Fire frequency & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## PAN DENSITY
+
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+
+
+
+## LION ACTIVITY
+
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```
+
+## Group covariate associations
+
+```{r group covariates}
+# termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen, panscon.250m, lion.dry
+
+grpcov <- read.csv("Results/Occupancy/Aerial_bydiet/Aerial_group.csv")
+
+### Plot effects of each covariate
+
+ggplot(grpcov, aes(x=Factor, y=Mean, col = Group)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Occupancy covariates") +
+  xlab("Covariate") +
+  ylab("Beta Coefficient")
+
+```
+
+# Group = functional group
+
+#### Factors associated with species richness
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial_byfunctionalgrp/Aerial_spprich.csv')
+
+# bring in associated site metadata
+site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs termite mound count
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs poaching
+ggplot(site.richness, aes(x = as.factor(poaching.high), y = Mean)) + 
+  geom_boxplot()
+
+# plot species richness vs road distance
+ggplot(site.richness, aes(x = road.major.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs Urema distance
+ggplot(site.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs tree cover
+ggplot(site.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+## Group richness
+
+```{r group richness covariates}
+group.richness <- read.csv('Results/Occupancy/Aerial_byfunctionalgrp/Aerial_grouprich.csv')
+
+# split StudySite into two columns - currently has study site and group ex. A06_Carnivore
+library(stringr)
+split <- str_split_fixed(group.richness$StudySite, "_", 2)
+names(split) <- c("StudySite", "Group")
+group.richness <- cbind(split, group.richness[,c(2:5)])
+names(group.richness) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI")
+
+# bring in all species richness as a comparison
+site.richness <- read.csv('Results/Occupancy/Aerial_byfunctionalgrp/Aerial_spprich.csv')
+site.richness$Group <- "All"
+
+group.richness <- bind_rows(group.richness, site.richness) 
+
+# bring in site metadata
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') %>% dplyr::select('StudySite', 'fire.interval', 'urema.distance', 'road.distance', 'termite.count.100m')
+
+# need to pull in poaching covarites from the .norm file; I hadn't extracted the non-normalized, but it doesn't matter since it's a factor
+site.metadata.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'poaching')
+site.metadata <- left_join(site.metadata, site.metadata.norm)
+
+# also need to pull in Hansen tree cover from a separate file
+site.hansen <- read.csv('Data/cam_metadata_hansenraw_091719.csv') %>% dplyr::select('StudySite', 'raster.values.hansen')
+site.metadata <- left_join(site.metadata, site.hansen)
+
+
+group.richness <- left_join(group.richness, site.metadata)
+
+ggplot(group.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap( ~ Group, scales = 'free_y')
+
+ggplot(group.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = road.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+group.richness$poaching.factor <- as.factor(group.richness$poaching)
+levels(group.richness$poaching.factor) <- c("Low", "Medium", "High")
+ggplot(group.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Poaching") +
+  ylab("Species Richness") +  
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+
+# another version where the data have been gathered
+group.richness2 <- group.richness
+names(group.richness2) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI", "Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Poaching", "Tree Cover")
+group.richness2 <- group.richness2 %>% gather("Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Poaching", "Tree Cover", key = "Factor", value = "Factor_value")
+
+pdf('Figures/Aerial/richness_all.pdf', width = 12, height = 8)
+ggplot(group.richness2, aes(x = Factor_value, y = Mean, col = Group)) +  
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  geom_point() + 
+  xlab("Covariate Value") +
+  ylab("Species Richness") +  
+  theme_bw() + theme(legend.position = "none") +
+  facet_grid(Group ~ Factor, scales = 'free') 
+dev.off()
+```
+
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial_byfunctionalgrp/Aerial_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching.high")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+#
+### PAN DENSITY
+#
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+#
+#
+#
+### LION ACTIVITY
+#
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```
+
+## Group covariate associations
+
+```{r group covariates}
+# termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen, panscon.250m, lion.dry
+
+grpcov <- read.csv("Results/Occupancy/Aerial_byfunctionalgrp/Aerial_group.csv")
+
+### Plot effects of each covariate
+
+ggplot(grpcov, aes(x=Factor, y=Mean, col = Group)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Occupancy covariates") +
+  xlab("Covariate") +
+  ylab("Beta Coefficient")
+
+```
+
+# Group = diet classification at a finer scale
+
+#### Species occupancy
+
+```{r species occupancy}
+alpha <- read.csv('Results/Occupancy/Aerial_bydiet2/Aerial_alphaspsi()p().csv')
+
+alpha.ci <- read.csv('Results/Occupancy/Aerial_bydiet2/Aerial_alphaCI.psi()p().csv') %>% t() # transpose as it's read in
+
+alpha <- cbind(alpha, alpha.ci) %>% rownames_to_column(var = "SppCode") # merge the alphas with the confidence intervals and change row names into first column
+
+names(alpha) <- c("SppCode", "alpha_occupancy", "alpha_025", "alpha_10", "alpha_50", "alpha_90", "alpha_975") # change names to match code
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+alpha <- plyr::join(alpha, Spp, by = "SppCode")
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+alpha$CommName <- reorder(alpha$CommName, alpha$alpha_occupancy)
+
+## barplot
+
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy, colour=Diet)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  xlab("Species") +
+  ylab("Occupancy Probability")
+
+```
+
+
+
+#### Factors associated with species richness
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial_bydiet2/Aerial_spprich.csv')
+
+# bring in associated site metadata
+site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs termite mound count
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs poaching
+ggplot(site.richness, aes(x = as.factor(poaching), y = Mean)) + 
+  geom_boxplot()
+
+ggplot(site.richness, aes(x = poaching, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs road distance
+ggplot(site.richness, aes(x = road.major.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs Urema distance
+ggplot(site.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs tree cover
+ggplot(site.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+## Group richness
+
+```{r group richness covariates}
+group.richness <- read.csv('Results/Occupancy/Aerial_bydiet2/Aerial_grouprich.csv')
+
+# split StudySite into two columns - currently has study site and group ex. A06_Carnivore
+library(stringr)
+split <- str_split_fixed(group.richness$StudySite, "_", 2)
+names(split) <- c("StudySite", "Group")
+group.richness <- cbind(split, group.richness[,c(2:5)])
+names(group.richness) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI")
+
+# bring in all species richness as a comparison
+site.richness <- read.csv('Results/Occupancy/Aerial_bydiet2/Aerial_spprich.csv')
+site.richness$Group <- "All"
+
+group.richness <- bind_rows(group.richness, site.richness) 
+
+
+# bring in site metadata
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') %>% dplyr::select('StudySite', 'fire.interval', 'urema.distance', 'road.distance', 'termite.count.100m')
+
+# need to pull in poaching covarites from the .norm file; I hadn't extracted the non-normalized, but it doesn't matter since it's a factor
+site.metadata.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'poaching')
+site.metadata <- left_join(site.metadata, site.metadata.norm)
+
+# also need to pull in Hansen tree cover from a separate file
+site.hansen <- read.csv('Data/cam_metadata_hansenraw_091719.csv') %>% dplyr::select('StudySite', 'raster.values.hansen')
+site.metadata <- left_join(site.metadata, site.hansen)
+
+
+group.richness <- left_join(group.richness, site.metadata)
+
+ggplot(group.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap( ~ Group, scales = 'free_y')
+
+ggplot(group.richness, aes(x = urema.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema") +
+  ylab("Species Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = road.distance, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+ggplot(group.richness, aes(x = tree.hansen, y = Mean)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover") +
+  ylab("Group Richness") + 
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+
+group.richness$poaching.factor <- as.factor(group.richness$poaching)
+levels(group.richness$poaching.factor) <- c("Low", "Medium", "High")
+pdf('Figures/Aerial/richness_poaching_diet.pdf', useDingbats = FALSE)
+ggplot(group.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Poaching") +
+  ylab("Species Richness") +  
+  theme_bw() +
+  facet_wrap(~Group, scales = 'free')
+dev.off()
+
+# another version where the data have been gathered
+group.richness2 <- group.richness
+names(group.richness2) <- c("StudySite", "Group", "Mean", "SD", "LCI", "UCI", "Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Illegal Hunting", "Tree Cover")
+group.richness2 <- group.richness2 %>% gather("Fire Frequency", "Distance to Lake Urema", "Distance to Road", "Termite Mound Density", "Illegal Hunting", "Tree Cover", key = "Factor", value = "Factor_value")
+
+pdf('Figures/Aerial/richness_all.pdf', width = 12, height = 8, useDingbats = FALSE)
+ggplot(group.richness2, aes(x = Factor_value, y = Mean, col = Group)) +  
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  geom_point() + 
+  xlab("Covariate Value") +
+  ylab("Species Richness") +  
+  theme_bw() + theme(legend.position = "none") +
+  facet_grid(Group ~ Factor, scales = 'free') +
+  scale_color_manual(values=c("black", "#F8766D", "#00BA38", "#619CFF"))
+dev.off()
+```
+
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial_bydiet2/Aerial_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- plyr::join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+#ggplot(subset(sppcov, Factor == "fire.interval"), aes(x=CommName_Full, y=Mean)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Fire frequency & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = Diet2)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Fire frequency & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Termite mound density & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Poaching & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to Lake Urema & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Distance to road & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Tree cover & occupancy") +
+  xlab("Species") +
+  ylab("Beta Coefficient")
+
+
+
+## PAN DENSITY
+
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+
+
+
+## LION ACTIVITY
+
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```
+
+## Group covariate associations
+
+```{r group covariates}
+# termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen, panscon.250m, lion.dry
+
+grpcov <- read.csv("Results/Occupancy/Aerial_bydiet2/Aerial_group.csv")
+
+### Plot effects of each covariate
+
+ggplot(grpcov, aes(x=Factor, y=Mean, col = Group)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(title = "Occupancy covariates") +
+  xlab("Covariate") +
+  ylab("Beta Coefficient") +
+  facet_wrap(~Group, scales = "free")
+
+```
+
+
+# Group = no group
+
+#### Species occupancy
+
+```{r species occupancy}
+alpha <- read.csv('Results/Occupancy/Aerial_nogroup/Aerial_alphaspsi()p().csv')
+
+alpha.ci <- read.csv('Results/Occupancy/Aerial_nogroup/Aerial_alphaCI.psi()p().csv') %>% t() # transpose as it's read in
+
+alpha <- cbind(alpha, alpha.ci) %>% rownames_to_column(var = "SppCode") # merge the alphas with the confidence intervals and change row names into first column
+
+names(alpha) <- c("SppCode", "alpha_occupancy", "alpha_025", "alpha_10", "alpha_50", "alpha_90", "alpha_975") # change names to match code
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+alpha <- plyr::join(alpha, Spp, by = "SppCode")
+
+alpha$CommName_Full <- reorder(alpha$CommName_Full, alpha$alpha_occupancy)
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+pdf('Figures/Aerial/occupancy.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(alpha, aes(x=CommName_Full, y=alpha_occupancy, colour=Diet)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("Species") +
+  ylab("Occupancy Probability")
+dev.off()
+
+# different panels by diet group
+alpha.carn <- subset(alpha, Diet == "Carnivore")
+alpha.omni <- subset(alpha, Diet == "Omnivore")
+alpha.herb <- subset(alpha, Diet == "Herbivore")
+
+pdf('Figures/Aerial/occupancy_herbivore.pdf', width = 6, height = 5, useDingbats = FALSE)
+ggplot(alpha.herb, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#00BA38") +
+  geom_line() +
+  geom_point(colour="#00BA38") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("Species") +
+  ylab("Occupancy Probability") +
+  ylim(0, 1) +
+  labs(tag = "C)")
+dev.off()
+
+pdf('Figures/Aerial/occupancy_omnivore.pdf', width = 4, height = 5, useDingbats = FALSE)
+ggplot(alpha.omni, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#619CFF") +
+  geom_line() +
+  geom_point(colour="#619CFF") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("") +
+  ylab("") +
+  ylim(0, 1) +
+  labs(tag = "B)")
+dev.off()
+
+pdf('Figures/Aerial/occupancy_carnivore.pdf', width = 3, height = 5, useDingbats = FALSE)
+ggplot(alpha.carn, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#F8766D") +
+  geom_line() +
+  geom_point(colour="#F8766D") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("") +
+  ylab("Occupancy Probability") +
+  ylim(0, 1) +
+  labs(tag = "A)")
+dev.off()
+
+```
+
+
+#### Factors associated with species richness
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial_nogroup/Aerial_spprich.csv')
+
+# bring in associated site metadata
+#site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') # not normalized - so you can interpret the x-axis better
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+pdf('Figures/Aerial/richness_fire.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency (years burned 2000-2016)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ fire.interval, data = site.richness)
+summary(fit)
+
+# plot species richness vs termite mound count
+pdf('Figures/Aerial/richness_termite.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density (mounds within 100m radius)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ termite.count.100m, data = site.richness)
+summary(fit)
+
+# plot species richness vs road distance
+pdf('Figures/Aerial/richness_road.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = road.major.distance/1000, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road (km)") +
+  ylab("Species Richness") + 
+  theme_bw() 
+dev.off()
+
+fit <- lm(Mean ~ road.major.distance, data = site.richness)
+summary(fit)
+
+# plot species richness vs Urema distance
+pdf('Figures/Aerial/richness_urema.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = urema.distance/1000, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema (km)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ urema.distance, data = site.richness)
+summary(fit)
+
+# need to pull in poaching covarites from the .norm file; I hadn't extracted the non-normalized, but it doesn't matter since it's a factor
+site.richness.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'poaching')
+site.richness <- left_join(site.richness, site.richness.norm)
+
+# also need to pull in Hansen tree cover from a separate file
+
+site.hansen <- read.csv('Data/cam_metadata_hansenraw_091719.csv') %>% dplyr::select('StudySite', 'raster.values.hansen')
+site.richness <- left_join(site.richness, site.hansen)
+
+# plot species richness vs tree cover 
+
+pdf('Figures/Aerial/richness_tree.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = raster.values.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover (%)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ raster.values.hansen, data = site.richness)
+summary(fit)
+
+# plot species richness vs poaching
+site.richness$poaching.factor <- as.factor(site.richness$poaching)
+levels(site.richness$poaching.factor) <- c("Low", "Medium", "High")
+pdf('Figures/Aerial/richness_poaching.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Illegal Hunting") +
+  ylab("Species Richness") +  
+  theme_bw() 
+dev.off()
+
+
+fit <- lm(Mean ~ poaching, data = site.richness)
+summary(fit)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial_nogroup/Aerial_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- plyr::join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+pdf('Figures/Aerial/species_fire.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "A)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Fire Frequency")
+dev.off()
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.large.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+pdf('Figures/Aerial/species_termite.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Termite Mound Density")
+dev.off()
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+pdf('Figures/Aerial/species_poaching.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "C)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Illegal Hunting")
+dev.off()
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+pdf('Figures/Aerial/species_urema.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Distance to Lake Urema")
+dev.off()
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+pdf('Figures/Aerial/species_road.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "D)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Distance to Road")
+dev.off()
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+pdf('Figures/Aerial/species_tree.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "A)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Tree Cover")
+dev.off()
+
+#
+### PAN DENSITY
+#
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+#
+#
+#
+### LION ACTIVITY
+#
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```
+
+#x
+# 2017 models
+
+# Group = no group
+
+#### Species occupancy
+
+```{r species occupancy}
+# for some reason, the code for bringing in and merging these data isn't working like it did above. had to modify.
+
+alpha <- read.csv('Results/Occupancy/Aerial2017_nogroup/Aerial2017_alphaspsi()p().csv')
+
+alpha.ci <- read.csv('Results/Occupancy/Aerial2017_nogroup/Aerial2017_alphaCI.psi()p().csv') 
+alpha.ci <- t(alpha.ci[, -1]) # transpose and remove first column (with names) so it doesn't convert to character
+
+alpha <- cbind(alpha, alpha.ci) 
+
+names(alpha) <- c("SppCode", "alpha_occupancy", "alpha_025", "alpha_10", "alpha_50", "alpha_90", "alpha_975") # change names to match code
+
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+alpha <- plyr::join(alpha, Spp, by = "SppCode")
+
+alpha$CommName_Full <- reorder(alpha$CommName_Full, alpha$alpha_occupancy)
+
+## barplot
+ggplot(alpha, aes(x=CommName, y=alpha_occupancy)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+## with 95% CI
+pdf('Figures/Aerial2017/occupancy.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(alpha, aes(x=CommName_Full, y=alpha_occupancy, colour=Diet)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1)) +
+  geom_line() +
+  geom_point() +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("Species") +
+  ylab("Occupancy Probability")
+dev.off()
+
+# different panels by diet group
+alpha.carn <- subset(alpha, Diet == "Carnivore")
+alpha.omni <- subset(alpha, Diet == "Omnivore")
+alpha.herb <- subset(alpha, Diet == "Herbivore")
+
+pdf('Figures/Aerial2017/occupancy_herbivore.pdf', width = 6, height = 5, useDingbats = FALSE)
+ggplot(alpha.herb, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#00BA38") +
+  geom_line() +
+  geom_point(colour="#00BA38") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("Species") +
+  ylab("Occupancy Probability") +
+  ylim(0, 1) +
+  labs(tag = "C)")
+dev.off()
+
+pdf('Figures/Aerial2017/occupancy_omnivore.pdf', width = 4, height = 5, useDingbats = FALSE)
+ggplot(alpha.omni, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#619CFF") +
+  geom_line() +
+  geom_point(colour="#619CFF") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("") +
+  ylab("") +
+  ylim(0, 1) +
+  labs(tag = "B)")
+dev.off()
+
+pdf('Figures/Aerial2017/occupancy_carnivore.pdf', width = 3, height = 5, useDingbats = FALSE)
+ggplot(alpha.carn, aes(x=CommName_Full, y=alpha_occupancy)) + 
+  geom_errorbar(aes(ymin=alpha_025, ymax=alpha_975, width=.1), colour="#F8766D") +
+  geom_line() +
+  geom_point(colour="#F8766D") +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  xlab("") +
+  ylab("Occupancy Probability") +
+  ylim(0, 1) +
+  labs(tag = "A)")
+dev.off()
+
+```
+
+
+#### Factors associated with species richness
+
+STILL NEED TO GET SPECIES RICHNESS WORKING FOR 2017 MODELS
+
+```{r species richness}
+# read in model output - modeled species richness at each camera trap site
+site.richness <- read.csv('Results/Occupancy/Aerial2017_nogroup/Aerial2017_spprich.csv')
+
+# bring in associated site metadata
+#site.metadata <- read.csv('Data/cam_metadata_norm_031519.csv')
+site.metadata <- read.csv('Data/Archives/cam_metadata_master_not_normalized.csv') # not normalized - so you can interpret the x-axis better
+
+# merge modeled species richness and site metadata
+site.richness <- left_join(site.richness, site.metadata)
+
+# plot species richness vs fire interval
+pdf('Figures/Aerial2017/richness_fire.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = fire.interval, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Fire Frequency (years burned 2000-2016)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ fire.interval, data = site.richness)
+summary(fit)
+
+# plot species richness vs termite mound count
+pdf('Figures/Aerial2017/richness_termite.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = termite.count.100m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Termite Mound Density (mounds within 100m radius)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ termite.count.100m, data = site.richness)
+summary(fit)
+
+# plot species richness vs road distance
+pdf('Figures/Aerial2017/richness_road.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = road.major.distance/1000, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Road (km)") +
+  ylab("Species Richness") + 
+  theme_bw() 
+dev.off()
+
+fit <- lm(Mean ~ road.major.distance, data = site.richness)
+summary(fit)
+
+# plot species richness vs Urema distance
+pdf('Figures/Aerial2017/richness_urema.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = urema.distance/1000, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Distance to Lake Urema (km)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ urema.distance, data = site.richness)
+summary(fit)
+
+# need to pull in poaching covarites from the .norm file; I hadn't extracted the non-normalized, but it doesn't matter since it's a factor
+site.richness.norm <- read.csv('Data/cam_metadata_norm_031519.csv') %>% dplyr::select('StudySite', 'poaching')
+site.richness <- left_join(site.richness, site.richness.norm)
+
+# also need to pull in Hansen tree cover from a separate file
+
+site.hansen <- read.csv('Data/cam_metadata_hansenraw_091719.csv') %>% dplyr::select('StudySite', 'raster.values.hansen')
+site.richness <- left_join(site.richness, site.hansen)
+
+# plot species richness vs tree cover 
+
+pdf('Figures/Aerial2017/richness_tree.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(x = raster.values.hansen, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F, col = "black", linetype = "dashed", size = 0.5) +
+  xlab("Tree Cover (%)") +
+  ylab("Species Richness") + 
+  theme_bw()
+dev.off()
+
+fit <- lm(Mean ~ raster.values.hansen, data = site.richness)
+summary(fit)
+
+# plot species richness vs poaching
+site.richness$poaching.factor <- as.factor(site.richness$poaching)
+levels(site.richness$poaching.factor) <- c("Low", "Medium", "High")
+pdf('Figures/Aerial2017/richness_poaching.pdf', width = 4, height = 3, useDingbats = FALSE)
+ggplot(site.richness, aes(poaching.factor, y = Mean)) + 
+  geom_boxplot() + 
+  xlab("Illegal Hunting") +
+  ylab("Species Richness") +  
+  theme_bw() 
+dev.off()
+
+
+fit <- lm(Mean ~ poaching, data = site.richness)
+summary(fit)
+
+# plot species richness vs pan density
+ggplot(site.richness, aes(x = panscon.250m, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+
+# plot species richness vs lion density
+ggplot(site.richness, aes(x = lion.dry, y = Mean)) + 
+  geom_point() + 
+#  geom_text(label=site.richness$StudySite, hjust=1, vjust=1.5) +
+  geom_smooth(method = lm, se = F)
+```
+
+
+## Species covariate associations
+
+```{r species covariates}
+sppcov <- read.csv("Results/Occupancy/Aerial2017_nogroup/Aerial2017_species.csv")
+names(sppcov) <- c("Factor", "SppCode", "Mean", "SD", "LCI", "UCI")
+Spp <- read.csv("Data/2018spp_kingdon.csv") # read in species traits
+sppcov <- plyr::join(sppcov, Spp, by = "SppCode")
+
+# order by body size
+sppcov$CommName_Full <- reorder(sppcov$CommName_Full, sppcov$Weight)
+
+# create another factor w/ collapsed diet categories
+sppcov$Hempsen_diet2 <- fct_collapse(sppcov$Hempsen_diet, grazer = c("GRO","GRV"), nongrazer = c("BGI", "BRW", "FRG", "GEN"))
+
+### Plot effects of each covariate
+
+## FIRE
+
+# reorder by size of effect
+sppcov.fire.interval <- subset(sppcov, Factor == "fire.interval")
+sppcov.fire.interval$CommName_Full <- reorder(sppcov.fire.interval$CommName_Full, sppcov.fire.interval$Mean)
+
+pdf('Figures/Aerial2017/species_fire.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.fire.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "A)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Fire Frequency")
+dev.off()
+
+## TERMITE
+
+sppcov.term.interval <- subset(sppcov, Factor == "termite.large.count.100m")
+sppcov.term.interval$CommName_Full <- reorder(sppcov.term.interval$CommName_Full, sppcov.term.interval$Mean)
+
+pdf('Figures/Aerial2017/species_termite.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.term.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Termite Mound Density")
+dev.off()
+
+## POACHING
+
+sppcov.poach.interval <- subset(sppcov, Factor == "poaching")
+sppcov.poach.interval$CommName_Full <- reorder(sppcov.poach.interval$CommName_Full, sppcov.poach.interval$Mean)
+
+pdf('Figures/Aerial2017/species_poaching.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.poach.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "C)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Illegal Hunting")
+dev.off()
+
+## UREMA DISTANCE
+
+sppcov.urema.interval <- subset(sppcov, Factor == "urema.distance")
+sppcov.urema.interval$CommName_Full <- reorder(sppcov.urema.interval$CommName_Full, sppcov.urema.interval$Mean)
+
+pdf('Figures/Aerial2017/species_urema.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.urema.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "B)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Distance to Lake Urema")
+dev.off()
+
+
+## ROAD DISTANCE
+
+sppcov.road.interval <- subset(sppcov, Factor == "road.major.distance")
+sppcov.road.interval$CommName_Full <- reorder(sppcov.road.interval$CommName_Full, sppcov.road.interval$Mean)
+
+pdf('Figures/Aerial2017/species_road.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.road.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "D)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Distance to Road")
+dev.off()
+
+## TREE COVER
+
+sppcov.tree.interval <- subset(sppcov, Factor == "tree.hansen")
+sppcov.tree.interval$CommName_Full <- reorder(sppcov.tree.interval$CommName_Full, sppcov.tree.interval$Mean)
+
+pdf('Figures/Aerial2017/species_tree.pdf', width = 8, height = 5, useDingbats = FALSE)
+ggplot(sppcov.tree.interval, aes(x=CommName_Full, y=Mean, col = Diet)) + 
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+  geom_point(position = position_dodge(width = .75)) +
+  theme_set(theme_bw() + theme(legend.key=element_blank(), axis.text.x=element_text(angle=45,hjust=1))) +
+  geom_hline(aes(yintercept = 0), linetype="dashed") +
+  labs(tag = "A)") +
+  xlab("Species") +
+  ylab("Beta Coefficient for Tree Cover")
+dev.off()
+
+#
+### PAN DENSITY
+#
+#sppcov.pan.interval <- subset(sppcov, Factor == "panscon.250m")
+#sppcov.pan.interval$CommName_Full <- reorder(sppcov.pan.interval$CommName_Full, sppcov.pan.interval$Mean)
+#
+#ggplot(sppcov.pan.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Pan density & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+#
+#
+#
+### LION ACTIVITY
+#
+#sppcov.lion.interval <- subset(sppcov, Factor == "lion.dry")
+#sppcov.lion.interval$CommName_Full <- reorder(sppcov.lion.interval$CommName_Full, #sppcov.lion.interval$Mean)
+#
+#ggplot(sppcov.lion.interval, aes(x=CommName_Full, y=Mean, col = FunctionalGroup)) + 
+#  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1, position = position_dodge(width = .75)) +
+#  geom_point(position = position_dodge(width = .75)) +
+#  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+#  geom_hline(aes(yintercept = 0), linetype="dashed") +
+#  labs(title = "Lion activity & occupancy") +
+#  xlab("Species") +
+#  ylab("Beta Coefficient")
+```

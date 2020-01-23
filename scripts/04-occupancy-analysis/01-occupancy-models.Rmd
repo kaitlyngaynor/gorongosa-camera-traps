@@ -16,8 +16,7 @@ library(reshape)
 library(reshape2)
 library(plyr)
 library(dplyr)
-
-setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
+library(here)
 ```
 
 Define function for standardizing the covariates. You'll need this later.
@@ -34,6 +33,7 @@ D.dry.year2 <- read.csv("Data/Cleaned_occupancy_records/Detections_7_1_17_9_30_1
 D.wet.year2 <- read.csv("Data/Cleaned_occupancy_records/Detections_12_1_17_3_31_18.csv")
 
 D.aerial <- read.csv("Data/Cleaned_occupancy_records/Detections_9_1_16_11_30_16.csv")
+D.aerial2017 <- read.csv("Data/Cleaned_occupancy_records/Detections_9_1_17_11_30_17.csv")
 ```
 
 And import corresponding camera operation dates.
@@ -44,6 +44,7 @@ Camop.dry.year2 <- read.csv("Data/Cleaned_occupancy_records/Camoperation_7_1_17_
 Camop.wet.year2 <- read.csv("Data/Cleaned_occupancy_records/Camoperation_12_1_17_3_31_18.csv")
 
 Camop.aerial <- read.csv("Data/Cleaned_occupancy_records/Camoperation_9_1_16_11_30_16 manualfix.csv")
+Camop.aerial2017 <- read.csv("Data/Cleaned_occupancy_records/Camoperation_9_1_17_11_30_17.csv")
 
 # remove all cameras that were operating for less than 10 days
 Camop.dry.year1 <- Camop.dry.year1[Camop.dry.year1$Operation > 9,]
@@ -52,6 +53,7 @@ Camop.dry.year2 <- Camop.dry.year2[Camop.dry.year2$Operation > 9,]
 Camop.wet.year2 <- Camop.wet.year2[Camop.wet.year2$Operation > 9,]
 
 Camop.aerial <- Camop.aerial[Camop.aerial$Operation >9,]
+Camop.aerial2017 <- Camop.aerial2017[Camop.aerial2017$Operation >9,]
 ```
 
 Make a version of the detection spreadsheets with only the LMH species.
@@ -99,12 +101,12 @@ D.wet.year1and2.lmh <- dplyr::select(D.wet.year1and2, StudySite, AEME, ALBU, CEN
 
 #### Import the rest of the data (camera locations, species ID/traits, metadata).
 ```{r import other data}
-LOC <- read.csv("Data/2018camloc.csv") # Camera locations (latitude and longitude, here Southing and Easting)
-Spp <- read.csv("Data/2018spp_kingdon.csv") # Species IDs and traits
+LOC <- read.csv(here::here("data", "2018camloc.csv")) # Camera locations (latitude and longitude, here Southing and Easting)
+Spp <- read.csv(here::here("data", "2018spp_kingdon.csv")) # Species IDs and traits
 # specify LMH Species
 Spp.lmh <- Spp[Spp$LMH == "yes",]
 
-Covariates <- read.csv("Data/cam_metadata_norm_031519.csv")
+Covariates <- read.csv(here::here("data", "cam_metadata_norm_031519.csv"))
 names(Covariates) # take a look at covariate names
 
 # make a version for duplicates within season
@@ -4268,7 +4270,7 @@ nthin = 50   # thinning rate
 out3 <- jags(data = data, 
              inits = inits, 
              parameters.to.save = params, 
-             model.file ="Scripts/Occupancy/AllMammals_pcov_nogroup.txt", 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov_nogroup.txt", 
              n.chains = nc, 
              n.iter = ni,
              n.burnin = nb, 
@@ -4363,5 +4365,1001 @@ colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
 
 # Export estimates of species richness as a table
 write.table(x=z.all,file="Results/Occupancy/Aerial_nogroup/Aerial_spprich.csv",sep=",")
+
+```
+
+
+##### Aerial count period 2017 (well, the equivalent period)
+
+###### basic summary stats
+
+```{r summmarize aerial}
+# calculate total number of detections of each species during study period
+D.aerial2017.sums <- colSums(D.aerial2017[,2:ncol(D.aerial2017)])
+names(D.aerial2017.sums) <- names(D.aerial2017[,2:ncol(D.aerial2017)]) 
+
+# calculate number of cameras at which each species was detected
+apply(D.aerial2017, 2, function(c)sum(c!=0))
+(apply(D.aerial2017, 2, function(c)sum(c!=0)) / 60 )*100 # as percentage
+```
+
+
+###### by size group
+
+```{r aerial by size}
+D <- D.aerial2017
+Camop <- Camop.aerial2017
+
+# Reorganize detection dataframe, so that it has one column for species and one for detections (rather than a column for each species)
+D <- melt(D,vars = c("StudySite"))
+colnames(D)[2:3] = c("SppCode","Detections")
+head(D) # make sure it worked
+
+# inefficiently only take detections from cameras that were operating for >10 days (to match the camop above)
+D <- left_join(Camop, D)
+D <- D[,c(1,3,4)]
+
+# Combine detection history with camera covariates and species traits
+D <- merge(D, Covariates, by = "StudySite") # joins by StudySite
+D <- merge(D, Camop, by = "StudySite") # joins by StudySite
+D <- merge(D, Spp, by = "SppCode") # joins by SppCode
+head(D)
+
+# for later group-level analysis
+#G <- cbind(as.numeric(D$Diet=="Carnivore"),as.numeric(D$Diet=="Herbivore")) # where diet is the group
+G <- cbind(as.numeric(D$Mass_category=="Large"),as.numeric(D$Mass_category=="Medium"),as.numeric(D$Mass_category=="Small")) # where body size the group
+
+# select occupancy covariates
+X = dplyr::select(D, termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen)
+
+## select detection covariates
+dX = dplyr::select(D, detect.obscured, cover.ground)
+
+## identify group covariates
+#XG = cbind(X*G[,1], X*G[,2])
+XG = cbind(X*G[,1], X*G[,2], X*G[,3])
+
+# Define data and parameters. Load all the data including the detection array, number of sampling occasions, individual species sampled, total number of sampled species, and covariate information.
+data <- list(D = D$Detections, # number of detections
+             N = ceiling(D[,"Operation"]), # number of trap-nights for each camera
+             Species = as.numeric(D$SppCode), # species
+             n = nrow(D), 
+             nspp = max(as.numeric(D$SppCode)),
+             X = X, 
+             XG = XG, 
+             dX = dX)
+
+# specify the initial values
+inits = function() {list(Z = as.numeric(data$D>0))}
+
+# specify the parameters to be monitored
+params = c("rho","pbeta","spbeta","sigpbeta","mbeta","sigbeta","sbeta","gbeta","psi.mean","sigma.occ","p.mean","sigma.p","alpha","Z","P")
+
+nc = 3       # number of chains
+ni = 60000   # number of iterations
+nb = 10000   # burn-in period
+nthin = 50   # thinning rate
+
+# Run occupancy model. The model file must be in the correct folder (see script AllMammals_pcov.txt)
+out3 <- jags(data = data, 
+             inits = inits, 
+             parameters.to.save = params, 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov.txt", 
+             n.chains = nc, 
+             n.iter = ni,
+             n.burnin = nb, 
+             n.thin = nthin)
+
+out3.sum <- out3$BUGSoutput$summary
+
+write.table(x=out3.sum,file="results/Occupancy/Aerial2017_bysize/Aerial2017.csv",sep=",") # save output
+
+#Name this output alpha and P.
+alpha <- out3$BUGSoutput$sims.list$alpha
+p <- out3$BUGSoutput$sims.list$P
+
+# we are log transforming alphas b/c they are on logit scale.
+expit <- function(x)  1/(1+exp(-x))
+logit.alpha <- expit(alpha)
+logit.p <- expit(p)
+
+# Columns represent species, so we take the mean of each column to get the mean psi and p value (when covariates are at their mean values) for each species.
+
+psimeans <- colMeans(logit.alpha)
+names(psimeans) <- sppnames2
+psimeans <- as.data.frame(psimeans)
+write.table(x = psimeans, file = "Results/Occupancy/Aerial2017_bysize/Aerial2017_alphaspsi()p().csv", sep = ",")
+
+pmeans <- colMeans(logit.p)
+names(pmeans) <- sppnames2
+write.table(x = pmeans, file = "Results/Occupancy/Aerial2017_bysize/Aerial2017_detection.csv", sep=",")
+
+# Get the quantiles and 95% confidence intervals for psi and p.
+
+apply(logit.alpha, 2, function(x) sort(x)[])
+psiCI <- apply(logit.alpha, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(psiCI) <- sppnames2
+write.table(x=psiCI, file="Results/Occupancy/Aerial2017_bysize/Aerial2017_alphaCI.psi()p().csv",sep=",")
+
+apply(logit.p, 2, function(x) sort(x)[])
+pCI <- apply(logit.p, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(pCI) <- sppnames2
+write.table(x = pCI, file="Results/Occupancy/Aerial_bysize/Aerial2017_pCI.psi()p().csv", sep = ",")
+
+# Define the occupancy covariate effects where mbeta is the community-level hyperparameter, gbeta is the group-level hyperparameter, and sbeta is the species-specific parameter.
+mbeta <- out3$BUGSoutput$sims.list$mbeta
+gbeta <- out3$BUGSoutput$sims.list$gbeta
+sbeta <- out3$BUGSoutput$sims.list$sbeta
+
+# Calculate group-level estimates.
+covs <- colnames(X) # define covariates
+#sizes <- c("Omnivore", "Carnivore", "Herbivore") # define groups
+sizes <- c("Very_large", "Large", "Medium", "Small")
+group <- data.frame(expand.grid(covs, sizes), matrix(NA, length(covs) * length(sizes), 4)) # create data frame where number of rows is equal to the number of covariates * the number of groups
+colnames(group) <- c("Factor", "Group", "Mean", "SD", "LCI", "UCI")
+
+# Create a loop estimating the reference group values.
+for (a in 1:length(covs)){
+  group[a,3:6] <- c(mean(mbeta[,a]),sd(mbeta[,a]),quantile(mbeta[,a],c(0.025,0.975)))
+}
+
+# Create a second loop estimating the other group values.
+
+for (a in 1:length(covs)){
+  for (b in 1:(length(sizes)-1)){
+    sims <- mbeta[,a] + gbeta[,((b-1)*ncol(X)+a)]
+    group[(ncol(X)*(b)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# Export table with group values.
+write.table(x = group, file = "Results/Occupancy/Aerial2017_bysize/Aerial2017_group.csv", sep = ",", row.names=F)
+
+# Define the species
+spec <- Spp[,1]
+
+# Define the group levels
+#levels(Spp$Diet) <- levels(Spp$Diet)[c(1,2,3)]
+#gg <- as.numeric(Spp$Diet)
+levels(Spp$Mass_category) <- levels(Spp$Mass_category)[c(1,2,3,4)]
+gg <- as.numeric(Spp$Mass_category)
+
+# Define the occupancy covariates and groups
+covs <- colnames(X)
+#sizes <- c("Omnivore","Carnivore","Herbivore")
+sizes <- c("Very_large", "Large", "Medium", "Small")
+
+# Create a data frame where the number of rows is equal to the number of covariates * the number of species
+species <- data.frame(expand.grid(covs,spec), matrix(NA,length(covs)*length(spec),4))
+colnames(species) <- c("Factor","Species","Mean","SD","LCI","UCI")
+
+# Re-define gbeta
+gbeta <- cbind(gbeta, matrix(0,nrow(gbeta),length(covs)))
+
+# Create a loop that will estimate species-specific values for each of the covariates
+for (a in 1:length(covs)){
+  for (b in 1:length(spec)){
+    sims <- mbeta[,a] + gbeta[,((gg[b]-1)*ncol(X)+a)] + sbeta[,b,a]
+    species[(ncol(X)*(b-1)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# export the table
+write.table(x=species,file="Results/Occupancy/Aerial2017_bysize/Aerial2017_species.csv",sep=",", row.names=F) 
+
+# Species richness for each site
+
+# Define the z matrix
+z = out3$BUGSoutput$sims.list$Z
+
+# Sort the data frame based on species, study site, and diet category
+d <- sort_df(merge(data.frame(ID = 1:nrow(D),D[,1:2]),data.frame(SppCode = spec, Group = Spp$Mass_category)),"ID")[,c(1,3,4)]
+
+# Create a new data frame
+dz <- data.frame(d,t(z))
+
+# Melt the data frame for easy casting
+m.dz <- melt(dz,id.vars = c("SppCode","StudySite","Group") )
+
+# Aggregate the data by summing the values in the z matrix for each camera station during each iteration
+z.all <- acast(m.dz,StudySite ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions and estimate mean, sd, and 95% credible interval values for camera-station specific species richness
+z.all <- t(apply(z.all,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.all)
+rownames(z.all) <- NULL
+z.all <- cbind(names,z.all)
+colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
+# not working anymore, hmm, skipping for now
+
+# Export estimates of species richness as a table
+write.table(x=z.all,file="Results/Occupancy/Aerial2017_bysize/Aerial2017_spprich.csv",sep=",")
+
+# To estimate group richness for each site:
+
+# Aggregate the data by summing the group-specific values in teh z matrix for each camera station during each iteration
+z.group <- acast(m.dz,StudySite + Group ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions representing estimated camera-station specific group richness
+z.group <- t(apply(z.group,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.group)
+rownames(z.group) <- NULL
+z.group <- cbind(names,z.group)
+colnames(z.group) = c("StudySite", "Mean","SD","LCI","UCI")
+
+# Export estimates of group richness as a table
+write.table(x=z.group,file="Results/Occupancy/Aerial2017_bysize/Aerial2017_grouprich.csv",sep=",")
+```
+
+###### by diet group
+
+
+```{r aerial by diet}
+D <- D.aerial2017
+Camop <- Camop.aerial2017
+
+# Reorganize detection dataframe, so that it has one column for species and one for detections (rather than a column for each species)
+D <- melt(D,vars = c("StudySite"))
+colnames(D)[2:3] = c("SppCode","Detections")
+head(D) # make sure it worked
+
+# inefficiently only take detections from cameras that were operating for >10 days (to match the camop above)
+D <- left_join(Camop, D)
+D <- D[,c(1,3,4)]
+
+# Combine detection history with camera covariates and species traits
+D <- merge(D, Covariates, by = "StudySite") # joins by StudySite
+D <- merge(D, Camop, by = "StudySite") # joins by StudySite
+D <- merge(D, Spp, by = "SppCode") # joins by SppCode
+head(D)
+
+# for later group-level analysis
+G <- cbind(as.numeric(D$Diet=="Carnivore"),as.numeric(D$Diet=="Herbivore")) # where diet is the group
+#G <- cbind(as.numeric(D$Mass_category=="Large"),as.numeric(D$Mass_category=="Medium"),as.numeric(D$Mass_category=="Small")) # where body size the group
+
+# select occupancy covariates
+X = dplyr::select(D, termite.count.100m, fire.interval, poaching, road.major.distance, urema.distance, tree.hansen)
+
+## select detection covariates
+dX = dplyr::select(D, detect.obscured, cover.ground)
+
+## identify group covariates
+XG = cbind(X*G[,1], X*G[,2])
+#XG = cbind(X*G[,1], X*G[,2], X*G[,3])
+
+# Define data and parameters. Load all the data including the detection array, number of sampling occasions, individual species sampled, total number of sampled species, and covariate information.
+data <- list(D = D$Detections, # number of detections
+             N = ceiling(D[,"Operation"]), # number of trap-nights for each camera
+             Species = as.numeric(D$SppCode), # species
+             n = nrow(D), 
+             nspp = max(as.numeric(D$SppCode)),
+             X = X, 
+             XG = XG, 
+             dX = dX)
+
+# specify the initial values
+inits = function() {list(Z = as.numeric(data$D>0))}
+
+# specify the parameters to be monitored
+params = c("rho","pbeta","spbeta","sigpbeta","mbeta","sigbeta","sbeta","gbeta","psi.mean","sigma.occ","p.mean","sigma.p","alpha","Z","P")
+
+nc = 3       # number of chains
+ni = 60000   # number of iterations
+nb = 10000   # burn-in period
+nthin = 50   # thinning rate
+
+# Run occupancy model. The model file must be in the correct folder (see script AllMammals_pcov.txt)
+out3 <- jags(data = data, 
+             inits = inits, 
+             parameters.to.save = params, 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov.txt", 
+             n.chains = nc, 
+             n.iter = ni,
+             n.burnin = nb, 
+             n.thin = nthin)
+
+out3.sum <- out3$BUGSoutput$summary
+
+write.table(x=out3.sum,file="Results/Occupancy/Aerial2017_bydiet/Aerial2017.csv",sep=",") # save output
+
+#Name this output alpha and P.
+alpha <- out3$BUGSoutput$sims.list$alpha
+p <- out3$BUGSoutput$sims.list$P
+
+# we are log transforming alphas b/c they are on logit scale.
+expit <- function(x)  1/(1+exp(-x))
+logit.alpha <- expit(alpha)
+logit.p <- expit(p)
+
+# Columns represent species, so we take the mean of each column to get the mean psi and p value (when covariates are at their mean values) for each species.
+
+psimeans <- colMeans(logit.alpha)
+names(psimeans) <- sppnames2
+psimeans <- as.data.frame(psimeans)
+write.table(x = psimeans, file = "Results/Occupancy/Aerial2017_bydiet/Aerial2017_alphaspsi()p().csv", sep = ",")
+
+pmeans <- colMeans(logit.p)
+names(pmeans) <- sppnames2
+write.table(x = pmeans, file = "Results/Occupancy/Aerial2017_bydiet/Aerial2017_detection.csv", sep=",")
+
+# Get the quantiles and 95% confidence intervals for psi and p.
+
+apply(logit.alpha, 2, function(x) sort(x)[])
+psiCI <- apply(logit.alpha, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(psiCI) <- sppnames2
+write.table(x=psiCI, file="Results/Occupancy/Aerial2017_bydiet/Aerial2017_alphaCI.psi()p().csv",sep=",")
+
+apply(logit.p, 2, function(x) sort(x)[])
+pCI <- apply(logit.p, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(pCI) <- sppnames2
+write.table(x = pCI, file="Results/Occupancy/Aerial2017_bydiet/Aerial2017_pCI.psi()p().csv", sep = ",")
+
+# Define the occupancy covariate effects where mbeta is the community-level hyperparameter, gbeta is the group-level hyperparameter, and sbeta is the species-specific parameter.
+mbeta <- out3$BUGSoutput$sims.list$mbeta
+gbeta <- out3$BUGSoutput$sims.list$gbeta
+sbeta <- out3$BUGSoutput$sims.list$sbeta
+
+# Calculate group-level estimates.
+covs <- colnames(X) # define covariates
+sizes <- c("Omnivore", "Carnivore", "Herbivore") # define groups
+#sizes <- c("Very_large", "Large", "Medium", "Small")
+group <- data.frame(expand.grid(covs, sizes), matrix(NA, length(covs) * length(sizes), 4)) # create data frame where number of rows is equal to the number of covariates * the number of groups
+colnames(group) <- c("Factor", "Group", "Mean", "SD", "LCI", "UCI")
+
+# Create a loop estimating the reference group values.
+for (a in 1:length(covs)){
+  group[a,3:6] <- c(mean(mbeta[,a]),sd(mbeta[,a]),quantile(mbeta[,a],c(0.025,0.975)))
+}
+
+# Create a second loop estimating the other group values.
+
+for (a in 1:length(covs)){
+  for (b in 1:(length(sizes)-1)){
+    sims <- mbeta[,a] + gbeta[,((b-1)*ncol(X)+a)]
+    group[(ncol(X)*(b)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# Export table with group values.
+write.table(x = group, file = "Results/Occupancy/Aerial2017_bydiet/Aerial2017_group.csv", sep = ",", row.names=F)
+
+# Define the species
+spec <- Spp[,1]
+
+# Define the group levels
+levels(Spp$Diet) <- levels(Spp$Diet)[c(1,2,3)]
+gg <- as.numeric(Spp$Diet)
+#levels(Spp$Mass_category) <- levels(Spp$Mass_category)[c(1,2,3,4)]
+#gg <- as.numeric(Spp$Mass_Category)
+
+# Define the occupancy covariates and groups
+covs <- colnames(X)
+sizes <- c("Omnivore","Carnivore","Herbivore")
+#sizes <- c("Very_large", "Large", "Medium", "Small")
+
+# Create a data frame where the number of rows is equal to the number of covariates * the number of species
+species <- data.frame(expand.grid(covs,spec), matrix(NA,length(covs)*length(spec),4))
+colnames(species) <- c("Factor","Species","Mean","SD","LCI","UCI")
+
+# Re-define gbeta
+gbeta <- cbind(gbeta, matrix(0,nrow(gbeta),length(covs)))
+
+# Create a loop that will estimate species-specific values for each of the covariates
+for (a in 1:length(covs)){
+  for (b in 1:length(spec)){
+    sims <- mbeta[,a] + gbeta[,((gg[b]-1)*ncol(X)+a)] + sbeta[,b,a]
+    species[(ncol(X)*(b-1)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# export the table
+write.table(x=species,file="Results/Occupancy/Aerial2017_bydiet/Aerial2017_species.csv",sep=",", row.names=F) 
+
+# Species richness for each site
+
+# Define the z matrix
+z = out3$BUGSoutput$sims.list$Z
+
+# Sort the data frame based on species, study site, and diet category
+d <- sort_df(merge(data.frame(ID = 1:nrow(D),D[,1:2]),data.frame(SppCode = spec, Group = Spp$Diet)),"ID")[,c(1,3,4)]
+
+# Create a new data frame
+dz <- data.frame(d,t(z))
+
+# Melt the data frame for easy casting
+m.dz <- melt(dz,id.vars = c("SppCode","StudySite","Group") )
+
+# Aggregate the data by summing the values in the z matrix for each camera station during each iteration
+z.all <- acast(m.dz,StudySite ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions and estimate mean, sd, and 95% credible interval values for camera-station specific species richness
+z.all <- t(apply(z.all,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.all)
+rownames(z.all) <- NULL
+z.all <- cbind(names,z.all)
+colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
+# not working anymore, hmm, skipping for now
+
+# Export estimates of species richness as a table
+write.table(x=z.all,file="Results/Occupancy/Aerial2017_bydiet/Aerial2017_spprich.csv",sep=",")
+
+# To estimate group richness for each site:
+
+# Aggregate the data by summing the group-specific values in teh z matrix for each camera station during each iteration
+z.group <- acast(m.dz,StudySite + Group ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions representing estimated camera-station specific group richness
+z.group <- t(apply(z.group,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.group)
+rownames(z.group) <- NULL
+z.group <- cbind(names,z.group)
+colnames(z.group) = c("StudySite", "Mean","SD","LCI","UCI")
+
+# Export estimates of group richness as a table
+write.table(x=z.group,file="Results/Occupancy/Aerial2017_bydiet/Aerial2017_grouprich.csv",sep=",")
+```
+
+###### by functional group
+
+```{r aerial by functional}
+D <- D.aerial2017
+Camop <- Camop.aerial2017
+
+# Reorganize detection dataframe, so that it has one column for species and one for detections (rather than a column for each species)
+D <- melt(D,vars = c("StudySite"))
+colnames(D)[2:3] = c("SppCode","Detections")
+head(D) # make sure it worked
+
+# inefficiently only take detections from cameras that were operating for >10 days (to match the camop above)
+D <- left_join(Camop, D)
+D <- D[,c(1,3,4)]
+
+# Combine detection history with camera covariates and species traits
+D <- merge(D, Covariates, by = "StudySite") # joins by StudySite
+D <- merge(D, Camop, by = "StudySite") # joins by StudySite
+D <- merge(D, Spp, by = "SppCode") # joins by SppCode
+head(D)
+
+# for later group-level analysis
+G <- cbind(as.numeric(D$FunctionalGroup=="Carnivore"),as.numeric(D$FunctionalGroup=="Insectivore"),as.numeric(D$FunctionalGroup=="Other_forager"),as.numeric(D$FunctionalGroup=="Primate")) # where functional group is the group
+
+# select occupancy covariates
+X = dplyr::select(D, termite.count.100m, fire.interval, poaching.high, road.major.distance, urema.distance, tree.hansen)
+
+## select detection covariates
+dX = dplyr::select(D, detect.obscured, cover.ground)
+
+## identify group covariates
+XG = cbind(X*G[,1], X*G[,2], X*G[,3], X*G[,4])
+
+# Define data and parameters. Load all the data including the detection array, number of sampling occasions, individual species sampled, total number of sampled species, and covariate information.
+data <- list(D = D$Detections, # number of detections
+             N = ceiling(D[,"Operation"]), # number of trap-nights for each camera
+             Species = as.numeric(D$SppCode), # species
+             n = nrow(D), 
+             nspp = max(as.numeric(D$SppCode)),
+             X = X, 
+             XG = XG, 
+             dX = dX)
+
+# specify the initial values
+inits = function() {list(Z = as.numeric(data$D>0))}
+
+# specify the parameters to be monitored
+params = c("rho","pbeta","spbeta","sigpbeta","mbeta","sigbeta","sbeta","gbeta","psi.mean","sigma.occ","p.mean","sigma.p","alpha","Z","P")
+
+nc = 3       # number of chains
+ni = 600   # number of iterations
+nb = 100   # burn-in period
+nthin = 50   # thinning rate
+
+# Run occupancy model. The model file must be in the correct folder (see script AllMammals_pcov.txt)
+out3 <- jags(data = data, 
+             inits = inits, 
+             parameters.to.save = params, 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov.txt", 
+             n.chains = nc, 
+             n.iter = ni,
+             n.burnin = nb, 
+             n.thin = nthin)
+
+out3.sum <- out3$BUGSoutput$summary
+
+write.table(x=out3.sum,file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017.csv",sep=",") # save output
+
+#Name this output alpha and P.
+alpha <- out3$BUGSoutput$sims.list$alpha
+p <- out3$BUGSoutput$sims.list$P
+
+# we are log transforming alphas b/c they are on logit scale.
+expit <- function(x)  1/(1+exp(-x))
+logit.alpha <- expit(alpha)
+logit.p <- expit(p)
+
+# Columns represent species, so we take the mean of each column to get the mean psi and p value (when covariates are at their mean values) for each species.
+
+psimeans <- colMeans(logit.alpha)
+names(psimeans) <- sppnames2
+psimeans <- as.data.frame(psimeans)
+write.table(x = psimeans, file = "Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_alphaspsi()p().csv", sep = ",")
+
+pmeans <- colMeans(logit.p)
+names(pmeans) <- sppnames2
+write.table(x = pmeans, file = "Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_detection.csv", sep=",")
+
+# Get the quantiles and 95% confidence intervals for psi and p.
+
+apply(logit.alpha, 2, function(x) sort(x)[])
+psiCI <- apply(logit.alpha, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(psiCI) <- sppnames2
+write.table(x=psiCI, file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_alphaCI.psi()p().csv",sep=",")
+
+apply(logit.p, 2, function(x) sort(x)[])
+pCI <- apply(logit.p, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(pCI) <- sppnames2
+write.table(x = pCI, file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_pCI.psi()p().csv", sep = ",")
+
+# Define the occupancy covariate effects where mbeta is the community-level hyperparameter, gbeta is the group-level hyperparameter, and sbeta is the species-specific parameter.
+mbeta <- out3$BUGSoutput$sims.list$mbeta
+gbeta <- out3$BUGSoutput$sims.list$gbeta
+sbeta <- out3$BUGSoutput$sims.list$sbeta
+
+# Calculate group-level estimates.
+covs <- colnames(X) # define covariates
+sizes <- c("Ungulate", "Carnivore", "Insectivore", "Other_forager", "Primate")
+group <- data.frame(expand.grid(covs, sizes), matrix(NA, length(covs) * length(sizes), 4)) # create data frame where number of rows is equal to the number of covariates * the number of groups
+colnames(group) <- c("Factor", "Group", "Mean", "SD", "LCI", "UCI")
+
+# Create a loop estimating the reference group values.
+for (a in 1:length(covs)){
+  group[a,3:6] <- c(mean(mbeta[,a]),sd(mbeta[,a]),quantile(mbeta[,a],c(0.025,0.975)))
+}
+
+# Create a second loop estimating the other group values.
+
+for (a in 1:length(covs)){
+  for (b in 1:(length(sizes)-1)){
+    sims <- mbeta[,a] + gbeta[,((b-1)*ncol(X)+a)]
+    group[(ncol(X)*(b)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# Export table with group values.
+write.table(x = group, file = "Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_group.csv", sep = ",", row.names=F)
+
+# Define the species
+spec <- Spp[,1]
+
+# Define the group levels
+levels(Spp$FunctionalGroup) <- levels(Spp$FunctionalGroup)[c(1,2,3,4,5)]
+gg <- as.numeric(Spp$FunctionalGroup)
+
+# Define the occupancy covariates and groups
+covs <- colnames(X)
+sizes <- c("Ungulate", "Carnivore", "Insectivore", "Other_forager", "Primate")
+
+# Create a data frame where the number of rows is equal to the number of covariates * the number of species
+species <- data.frame(expand.grid(covs,spec), matrix(NA,length(covs)*length(spec),4))
+colnames(species) <- c("Factor","Species","Mean","SD","LCI","UCI")
+
+# Re-define gbeta
+gbeta <- cbind(gbeta, matrix(0,nrow(gbeta),length(covs)))
+
+# Create a loop that will estimate species-specific values for each of the covariates
+for (a in 1:length(covs)){
+  for (b in 1:length(spec)){
+    sims <- mbeta[,a] + gbeta[,((gg[b]-1)*ncol(X)+a)] + sbeta[,b,a]
+    species[(ncol(X)*(b-1)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# export the table
+write.table(x=species,file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_species.csv",sep=",", row.names=F) 
+
+# Species richness for each site
+
+# Define the z matrix
+z = out3$BUGSoutput$sims.list$Z
+
+# Sort the data frame based on species, study site, and diet category
+d <- sort_df(merge(data.frame(ID = 1:nrow(D),D[,1:2]),data.frame(SppCode = spec, Group = Spp$FunctionalGroup)),"ID")[,c(1,3,4)]
+
+# Create a new data frame
+dz <- data.frame(d,t(z))
+
+# Melt the data frame for easy casting
+m.dz <- melt(dz,id.vars = c("SppCode","StudySite","Group") )
+
+# Aggregate the data by summing the values in the z matrix for each camera station during each iteration
+z.all <- acast(m.dz,StudySite ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions and estimate mean, sd, and 95% credible interval values for camera-station specific species richness
+z.all <- t(apply(z.all,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.all)
+rownames(z.all) <- NULL
+z.all <- cbind(names,z.all)
+colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
+# not working anymore, hmm, skipping for now
+
+# Export estimates of species richness as a table
+write.table(x=z.all,file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_spprich.csv",sep=",")
+
+# To estimate group richness for each site:
+
+# Aggregate the data by summing the group-specific values in teh z matrix for each camera station during each iteration
+z.group <- acast(m.dz,StudySite + Group ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions representing estimated camera-station specific group richness
+z.group <- t(apply(z.group,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.group)
+rownames(z.group) <- NULL
+z.group <- cbind(names,z.group)
+colnames(z.group) = c("StudySite", "Mean","SD","LCI","UCI")
+
+# Export estimates of group richness as a table
+write.table(x=z.group,file="Results/Occupancy/Aerial2017_byfunctionalgrp/Aerial2017_grouprich.csv",sep=",")
+```
+
+###### by diet group finer scale
+
+
+```{r aerial by diet}
+D <- D.aerial2017
+Camop <- Camop.aerial2017
+
+# Reorganize detection dataframe, so that it has one column for species and one for detections (rather than a column for each species)
+D <- melt(D,vars = c("StudySite"))
+colnames(D)[2:3] = c("SppCode","Detections")
+head(D) # make sure it worked
+
+# inefficiently only take detections from cameras that were operating for >10 days (to match the camop above)
+D <- left_join(Camop, D)
+D <- D[,c(1,3,4)]
+
+# Combine detection history with camera covariates and species traits
+D <- merge(D, Covariates, by = "StudySite") # joins by StudySite
+D <- merge(D, Camop, by = "StudySite") # joins by StudySite
+D <- merge(D, Spp, by = "SppCode") # joins by SppCode
+head(D)
+
+# for later group-level analysis
+G <- cbind(as.numeric(D$Diet2 == "CS"), as.numeric(D$Diet2 == "HB"), as.numeric(D$Diet2 == "HG"), as.numeric(D$Diet2 == "HMF"), as.numeric(D$Diet2 == "HO"), as.numeric(D$Diet2 == "I"), as.numeric(D$Diet2 == "LC"), as.numeric(D$Diet2 == "OC"))
+#G <- cbind(as.numeric(D$Diet=="Carnivore"),as.numeric(D$Diet=="Herbivore")) # where diet is the group
+#G <- cbind(as.numeric(D$Mass_category=="Large"),as.numeric(D$Mass_category=="Medium"),as.numeric(D$Mass_category=="Small")) # where body size the group
+
+# select occupancy covariates
+X = dplyr::select(D, termite.count.100m, fire.interval, poaching, road.major.distance, urema.distance, tree.hansen)
+
+## select detection covariates
+dX = dplyr::select(D, detect.obscured, cover.ground)
+
+## identify group covariates
+XG = cbind(X*G[,1], X*G[,2], X*G[,3], X*G[,4], X*G[,5], X*G[,6], X*G[,7], X*G[,8])
+
+# Define data and parameters. Load all the data including the detection array, number of sampling occasions, individual species sampled, total number of sampled species, and covariate information.
+data <- list(D = D$Detections, # number of detections
+             N = ceiling(D[,"Operation"]), # number of trap-nights for each camera
+             Species = as.numeric(D$SppCode), # species
+             n = nrow(D), 
+             nspp = max(as.numeric(D$SppCode)),
+             X = X, 
+             XG = XG, 
+             dX = dX)
+
+# specify the initial values
+inits = function() {list(Z = as.numeric(data$D>0))}
+
+# specify the parameters to be monitored
+params = c("rho","pbeta","spbeta","sigpbeta","mbeta","sigbeta","sbeta","gbeta","psi.mean","sigma.occ","p.mean","sigma.p","alpha","Z","P")
+
+nc = 3       # number of chains
+ni = 6000   # number of iterations
+nb = 1000   # burn-in period
+nthin = 50   # thinning rate
+
+# Run occupancy model. The model file must be in the correct folder (see script AllMammals_pcov.txt)
+out3 <- jags(data = data, 
+             inits = inits, 
+             parameters.to.save = params, 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov.txt", 
+             n.chains = nc, 
+             n.iter = ni,
+             n.burnin = nb, 
+             n.thin = nthin)
+
+out3.sum <- out3$BUGSoutput$summary
+
+write.table(x=out3.sum,file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017.csv",sep=",") # save output
+
+#Name this output alpha and P.
+alpha <- out3$BUGSoutput$sims.list$alpha
+p <- out3$BUGSoutput$sims.list$P
+
+# we are log transforming alphas b/c they are on logit scale.
+expit <- function(x)  1/(1+exp(-x))
+logit.alpha <- expit(alpha)
+logit.p <- expit(p)
+
+# Columns represent species, so we take the mean of each column to get the mean psi and p value (when covariates are at their mean values) for each species.
+
+psimeans <- colMeans(logit.alpha)
+names(psimeans) <- sppnames2
+psimeans <- as.data.frame(psimeans)
+write.table(x = psimeans, file = "Results/Occupancy/Aerial2017_bydiet2/Aerial2017_alphaspsi()p().csv", sep = ",")
+
+pmeans <- colMeans(logit.p)
+names(pmeans) <- sppnames2
+write.table(x = pmeans, file = "Results/Occupancy/Aerial2017_bydiet2/Aerial2017_detection.csv", sep=",")
+
+# Get the quantiles and 95% confidence intervals for psi and p.
+
+apply(logit.alpha, 2, function(x) sort(x)[])
+psiCI <- apply(logit.alpha, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(psiCI) <- sppnames2
+write.table(x=psiCI, file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017_alphaCI.psi()p().csv",sep=",")
+
+apply(logit.p, 2, function(x) sort(x)[])
+pCI <- apply(logit.p, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(pCI) <- sppnames2
+write.table(x = pCI, file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017_pCI.psi()p().csv", sep = ",")
+
+# Define the occupancy covariate effects where mbeta is the community-level hyperparameter, gbeta is the group-level hyperparameter, and sbeta is the species-specific parameter.
+mbeta <- out3$BUGSoutput$sims.list$mbeta
+gbeta <- out3$BUGSoutput$sims.list$gbeta
+sbeta <- out3$BUGSoutput$sims.list$sbeta
+
+# Calculate group-level estimates.
+covs <- colnames(X) # define covariates
+sizes <- c("OP", "CS", "HB", "HG", "HMF", "HO", "I", "LC", "OC") # define groups
+#sizes <- c("Very_large", "Large", "Medium", "Small")
+group <- data.frame(expand.grid(covs, sizes), matrix(NA, length(covs) * length(sizes), 4)) # create data frame where number of rows is equal to the number of covariates * the number of groups
+colnames(group) <- c("Factor", "Group", "Mean", "SD", "LCI", "UCI")
+
+# Create a loop estimating the reference group values.
+for (a in 1:length(covs)){
+  group[a,3:6] <- c(mean(mbeta[,a]),sd(mbeta[,a]),quantile(mbeta[,a],c(0.025,0.975)))
+}
+
+# Create a second loop estimating the other group values.
+
+for (a in 1:length(covs)){
+  for (b in 1:(length(sizes)-1)){
+    sims <- mbeta[,a] + gbeta[,((b-1)*ncol(X)+a)]
+    group[(ncol(X)*(b)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# Export table with group values.
+write.table(x = group, file = "Results/Occupancy/Aerial2017_bydiet2/Aerial2017_group.csv", sep = ",", row.names=F)
+
+# Define the species
+spec <- Spp[,1]
+
+# Define the group levels
+levels(Spp$Diet2) <- levels(Spp$Diet2)[c(1,2,3,4,5,6,7,8,9)]
+gg <- as.numeric(Spp$Diet2)
+#levels(Spp$Mass_category) <- levels(Spp$Mass_category)[c(1,2,3,4)]
+#gg <- as.numeric(Spp$Mass_Category)
+
+# Define the occupancy covariates and groups
+covs <- colnames(X)
+sizes <- c("OP", "CS", "HB", "HG", "HMF", "HO", "I", "LC", "OC")
+#sizes <- c("Very_large", "Large", "Medium", "Small")
+
+# Create a data frame where the number of rows is equal to the number of covariates * the number of species
+species <- data.frame(expand.grid(covs,spec), matrix(NA,length(covs)*length(spec),4))
+colnames(species) <- c("Factor","Species","Mean","SD","LCI","UCI")
+
+# Re-define gbeta
+gbeta <- cbind(gbeta, matrix(0,nrow(gbeta),length(covs)))
+
+# Create a loop that will estimate species-specific values for each of the covariates
+for (a in 1:length(covs)){
+  for (b in 1:length(spec)){
+    sims <- mbeta[,a] + gbeta[,((gg[b]-1)*ncol(X)+a)] + sbeta[,b,a]
+    species[(ncol(X)*(b-1)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# export the table
+write.table(x=species,file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017_species.csv",sep=",", row.names=F) 
+
+# Species richness for each site
+
+# Define the z matrix
+z = out3$BUGSoutput$sims.list$Z
+
+# Sort the data frame based on species, study site, and diet category
+d <- sort_df(merge(data.frame(ID = 1:nrow(D),D[,1:2]),data.frame(SppCode = spec, Group = Spp$Diet2)),"ID")[,c(1,3,4)]
+
+# Create a new data frame
+dz <- data.frame(d,t(z))
+
+# Melt the data frame for easy casting
+m.dz <- melt(dz,id.vars = c("SppCode","StudySite","Group") )
+
+# Aggregate the data by summing the values in the z matrix for each camera station during each iteration
+z.all <- acast(m.dz,StudySite ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions and estimate mean, sd, and 95% credible interval values for camera-station specific species richness
+z.all <- t(apply(z.all,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.all)
+rownames(z.all) <- NULL
+z.all <- cbind(names,z.all)
+colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
+# not working anymore, hmm, skipping for now
+
+# Export estimates of species richness as a table
+write.table(x=z.all,file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017_spprich.csv",sep=",")
+
+# To estimate group richness for each site:
+
+# Aggregate the data by summing the group-specific values in teh z matrix for each camera station during each iteration
+z.group <- acast(m.dz,StudySite + Group ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions representing estimated camera-station specific group richness
+z.group <- t(apply(z.group,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.group)
+rownames(z.group) <- NULL
+z.group <- cbind(names,z.group)
+colnames(z.group) = c("StudySite", "Mean","SD","LCI","UCI")
+
+# Export estimates of group richness as a table
+write.table(x=z.group,file="Results/Occupancy/Aerial2017_bydiet2/Aerial2017_grouprich.csv",sep=",")
+```
+
+
+###### test with no group
+
+```{r aerial by functional}
+D <- D.aerial2017
+Camop <- Camop.aerial2017
+
+# Reorganize detection dataframe, so that it has one column for species and one for detections (rather than a column for each species)
+D <- melt(D,vars = c("StudySite"))
+colnames(D)[2:3] = c("SppCode","Detections")
+head(D) # make sure it worked
+
+# inefficiently only take detections from cameras that were operating for >10 days (to match the camop above)
+D <- left_join(Camop, D)
+D <- D[,c(1,3,4)]
+
+# Combine detection history with camera covariates and species traits
+D <- merge(D, Covariates, by = "StudySite") # joins by StudySite
+D <- merge(D, Camop, by = "StudySite") # joins by StudySite
+D <- merge(D, Spp, by = "SppCode") # joins by SppCode
+head(D)
+
+# for later group-level analysis
+#G <- cbind(as.numeric(D$FunctionalGroup=="Carnivore"),as.numeric(D$FunctionalGroup=="Insectivore"),as.numeric(D$FunctionalGroup=="Other_forager"),as.numeric(D$FunctionalGroup=="Primate")) # where body size the group
+
+# select occupancy covariates
+X = dplyr::select(D, termite.large.count.100m, fire.interval, poaching, road.major.distance, urema.distance, tree.hansen)
+
+## select detection covariates
+dX = dplyr::select(D, detect.obscured, cover.ground)
+
+## identify group covariates
+#XG = cbind(X*G[,1], X*G[,2], X*G[,3], X*G[,4])
+
+# Define data and parameters. Load all the data including the detection array, number of sampling occasions, individual species sampled, total number of sampled species, and covariate information.
+data <- list(D = D$Detections, # number of detections
+             N = ceiling(D[,"Operation"]), # number of trap-nights for each camera
+             Species = as.numeric(D$SppCode), # species
+             n = nrow(D), 
+             nspp = max(as.numeric(D$SppCode)),
+             X = X, 
+             dX = dX)
+
+# specify the initial values
+inits = function() {list(Z = as.numeric(data$D>0))}
+
+# specify the parameters to be monitored
+params = c("rho","pbeta","spbeta","sigpbeta","mbeta","sigbeta","sbeta","psi.mean","sigma.occ","p.mean","sigma.p","alpha","Z","P")
+
+nc = 3       # number of chains
+ni = 60000   # number of iterations
+nb = 10000   # burn-in period
+nthin = 50   # thinning rate
+
+# Run occupancy model. The model file must be in the correct folder (see script AllMammals_pcov.txt)
+out3 <- jags(data = data, 
+             inits = inits, 
+             parameters.to.save = params, 
+             model.file ="scripts/04-occupancy-analysis/AllMammals_pcov_nogroup.txt", 
+             n.chains = nc, 
+             n.iter = ni,
+             n.burnin = nb, 
+             n.thin = nthin)
+
+out3.sum <- out3$BUGSoutput$summary
+
+write.table(x=out3.sum,file="Results/Occupancy/Aerial2017_nogroup/Aerial2017.csv",sep=",") # save output
+
+#Name this output alpha and P.
+alpha <- out3$BUGSoutput$sims.list$alpha
+p <- out3$BUGSoutput$sims.list$P
+
+# we are log transforming alphas b/c they are on logit scale.
+expit <- function(x)  1/(1+exp(-x))
+logit.alpha <- expit(alpha)
+logit.p <- expit(p)
+
+# Columns represent species, so we take the mean of each column to get the mean psi and p value (when covariates are at their mean values) for each species.
+
+psimeans <- colMeans(logit.alpha)
+names(psimeans) <- sppnames2
+psimeans <- as.data.frame(psimeans)
+write.table(x = psimeans, file = "Results/Occupancy/Aerial2017_nogroup/Aerial2017_alphaspsi()p().csv", sep = ",")
+
+pmeans <- colMeans(logit.p)
+names(pmeans) <- sppnames2
+write.table(x = pmeans, file = "Results/Occupancy/Aerial2017_nogroup/Aerial2017_detection.csv", sep=",")
+
+# Get the quantiles and 95% confidence intervals for psi and p.
+
+apply(logit.alpha, 2, function(x) sort(x)[])
+psiCI <- apply(logit.alpha, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(psiCI) <- sppnames2
+write.table(x=psiCI, file="Results/Occupancy/Aerial2017_nogroup/Aerial2017_alphaCI.psi()p().csv",sep=",")
+
+apply(logit.p, 2, function(x) sort(x)[])
+pCI <- apply(logit.p, 2, function(x) quantile(x,probs = c(0.025,0.1,0.5,0.9,0.975)))
+colnames(pCI) <- sppnames2
+write.table(x = pCI, file="Results/Occupancy/Aerial2017_nogroup/Aerial2017_pCI.psi()p().csv", sep = ",")
+
+# Define the occupancy covariate effects where mbeta is the community-level hyperparameter, gbeta is the group-level hyperparameter, and sbeta is the species-specific parameter.
+mbeta <- out3$BUGSoutput$sims.list$mbeta
+#gbeta <- out3$BUGSoutput$sims.list$gbeta
+sbeta <- out3$BUGSoutput$sims.list$sbeta
+
+# Define the species
+spec <- Spp[,1]
+
+# Define the occupancy covariates
+covs <- colnames(X)
+
+# Create a data frame where the number of rows is equal to the number of covariates * the number of species
+species <- data.frame(expand.grid(covs,spec), matrix(NA,length(covs)*length(spec),4))
+colnames(species) <- c("Factor","Species","Mean","SD","LCI","UCI")
+
+# Create a loop that will estimate species-specific values for each of the covariates
+for (a in 1:length(covs)){
+  for (b in 1:length(spec)){
+    sims <- mbeta[,a] + sbeta[,b,a]
+    species[(ncol(X)*(b-1)+a),3:6] <- c(mean(sims),sd(sims),quantile(sims,c(0.025,0.975)))
+  }
+}
+
+# export the table
+write.table(x=species,file="Results/Occupancy/Aerial2017_nogroup/Aerial2017_species.csv",sep=",", row.names=F) 
+
+# Species richness for each site
+
+# Define the z matrix
+z = out3$BUGSoutput$sims.list$Z
+
+# Sort the data frame based on species, study site, and diet category
+d <- sort_df(merge(data.frame(ID = 1:nrow(D),D[,1:2]),data.frame(SppCode = spec)),"ID")[,c(1,2)]
+
+# Create a new data frame
+dz <- data.frame(D,t(z))
+
+# Melt the data frame for easy casting
+m.dz <- melt(dz,id.vars = c("SppCode","StudySite") )
+
+# Aggregate the data by summing the values in the z matrix for each camera station during each iteration
+z.all <- acast(m.dz,StudySite ~ variable, fun.aggregate = sum)
+
+# Use the aggregated values to create probability distributions and estimate mean, sd, and 95% credible interval values for camera-station specific species richness
+z.all <- t(apply(z.all,1,function(x) c(mean(x),sd(x),quantile(x,c(0.025,0.975)))))
+names <- rownames(z.all)
+rownames(z.all) <- NULL
+z.all <- cbind(names,z.all)
+colnames(z.all) = c("StudySite", "Mean","SD","LCI","UCI")
+# not working anymore, hmm, skipping for now
+
+# Export estimates of species richness as a table
+write.table(x=z.all,file="Results/Occupancy/Aerial2017_nogroup/Aerial2017_spprich.csv",sep=",")
 
 ```
