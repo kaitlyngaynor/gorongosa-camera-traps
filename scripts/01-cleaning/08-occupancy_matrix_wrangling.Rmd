@@ -13,10 +13,9 @@ Here, I bring in the master file with all of the 0 and 1 records (non-detection 
 ```{r setup, message = F}
 library(tidyverse)
 library(sjmisc)
+library(here)
 
-setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
-
-matrix.all <- read.csv("Data/Raw Data/All_species_by_date_year1and2_031419.csv", header=T)
+matrix.all <- read.csv(here::here("data", "raw-data", "All_species_by_date_year1and2_082919.csv"), header=T)
 #matrix.all <- read.csv("Data/Raw Data/All_species_by_date_062316_090417.csv", header=T)
 
 summary(matrix.all$Species) # look at output and confirm that there are 60 rows per species (one for each camera). You can also see what species are included. This is all of them, including birds and human.
@@ -96,8 +95,12 @@ First, take a subset of the original spreadsheet for the dates of interest by se
 #end.date <- "X11.28.16"
 
 ## aerial count 3 months in 2016
-start.date <- "X9.1.16"
-end.date <- "X11.30.16"
+#start.date <- "X9.1.16"
+#end.date <- "X11.30.16"
+
+## aerial count equivalent 3 months in 2017
+start.date <- "X9.1.17"
+end.date <- "X11.30.17"
 ```
 
 We want a spreadsheet of camera operation. That will have one row per camera, with just one additional column for the number of sampling periods (days). This will correspond to the number of columns in the original spreadsheet for which there is a 0 or 1 (rather than an NA).
