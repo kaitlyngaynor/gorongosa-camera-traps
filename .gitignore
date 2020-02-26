@@ -46,6 +46,7 @@ vignettes/*.pdf
 /gis/
 figures/
 results/
+data/
 
 
 # ignore knit file
