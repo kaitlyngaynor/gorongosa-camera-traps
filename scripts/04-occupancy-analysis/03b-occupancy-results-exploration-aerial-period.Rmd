@@ -11,7 +11,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-Ran models in Gorongosa_occupancy_032819.Rmd
+Ran models in 01-occupancy-models.Rmd
 Here, exploring model output (after a bit of data file editing to get the column names in the appropriate place - couldn't figure out how to do in model code for some reason and didn't try super hard)
 
 ```{r setup}
