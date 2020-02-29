@@ -4215,7 +4215,7 @@ write.table(x=z.group,file="Results/Occupancy/Aerial_bydiet2/Aerial_grouprich.cs
 
 ###### test with no group
 
-```{r aerial by functional}
+```{r aerial no group}
 D <- D.aerial
 Camop <- Camop.aerial
 
