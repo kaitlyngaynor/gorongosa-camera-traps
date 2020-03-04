@@ -1,6 +1,7 @@
 library(here)
 library(geosphere)
 
+# I generated this file manually from the imported waypoints from the handheld GPS unit
 points <- read.csv(here::here("gis", "gridcenter_vs_camera_locations.csv"))
 
 points$distance <- NA
