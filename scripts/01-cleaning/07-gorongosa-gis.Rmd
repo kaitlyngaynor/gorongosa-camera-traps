@@ -13,8 +13,6 @@ editor_options:
 
 Set working directory, load libraries.
 ```{r setup}
-setwd("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R")
-
 library(sp) # create and reproject spatial objects
 library(raster) # analysis with raster data
 library(rgdal) # for reading GIS layers
@@ -28,7 +26,7 @@ Import and clean up the data
 
 #### Convert camera location GPS points to SpatialPoints class and reproject in UTM:
 ```{r reproject cameras}
-data <- read.csv("GIS/Camera layers/Camera_coordinates.csv", header = T)  ## csv with camera coordinates
+data <- read.csv("gis/Camera layers/Camera_coordinates.csv", header = T)  ## csv with camera coordinates
 
 cameras <- data[, c('Longitude', 'Latitude')]
 cameras.sp <- SpatialPoints(cameras, proj4string=CRS("+proj=longlat +ellps=WGS84")) # Data in degrees
@@ -42,62 +40,63 @@ data$Latitude.UTM <-cameras.UTM[,2]
 #### Import vector layers (lines and polygons) into R using rgdal.
 ```{r import GIS}
 ## Park boundary
-boundary.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "gnp_boundary_west_straight_latlong") # use "." if in working directory, otherwise enter file path
+boundary.lyr <- readOGR("gis/Spatial data/GIS layers", "gnp_boundary_west_straight_latlong") # use "." if in working directory, otherwise enter file path
 boundary.lyr.UTM <- spTransform(boundary.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
 
 ## Roads
-# roads.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/roads_curr_aug2015.kml", "roads_curr_aug2015") # this is a KML, so slightly different format - but I've edited roads since, so ignore this one
-roads.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "Roads_all")
+# roads.lyr <- readOGR("gis/roads_curr_aug2015.kml", "roads_curr_aug2015") # this is a KML, so slightly different format - but I've edited roads since, so ignore this one
+roads.lyr <- readOGR("gis/Spatial data/GIS layers", "Roads_all")
 roads.lyr.UTM <- spTransform(roads.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
 plot(roads.lyr.UTM)
 
-roadsmajor.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "Roads_major")
+roadsmajor.lyr <- readOGR("gis/Spatial data/GIS layers", "Roads_major")
 roadsmajor.lyr.UTM <- spTransform(roadsmajor.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
 plot(roadsmajor.lyr.UTM)
 
 ## Lake Urema
-urema.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "lake_urema_latlong") # use "." if in working directory, otherwise enter file path
+urema.lyr <- readOGR("gis/Spatial data/GIS layers", "lake_urema_latlong") # use "." if in working directory, otherwise enter file path
 urema.lyr.UTM <- spTransform(urema.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
 
 ## Rivers
-rivers.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/GIS layers", "gnp_main_rivers_latlong")
+rivers.lyr <- readOGR("gis/Spatial data/GIS layers", "gnp_main_rivers_latlong")
 rivers.lyr.UTM <- spTransform(rivers.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
 ## Pans
-pans.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan", "PanOutline_130429_2")
+pans.lyr <- readOGR("gis/Spatial data/Pan", "PanOutline_130429_2")
 pans.lyr.UTM <- spTransform(pans.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
 ## Conservative Pans (no channels and floodplain)
-panscon.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan_conservative", "PanOutline_130429_2")
+panscon.lyr <- readOGR("gis/Spatial data/Pan_conservative", "PanOutline_130429_2")
 panscon.lyr.UTM <- spTransform(panscon.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
 ## Only large pans >1km2 (no channels and floodplain)
-panslarge.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Pan_conservative", "Pan_largerthan1km2")
+panslarge.lyr <- readOGR("gis/Spatial data/Pan_conservative", "Pan_largerthan1km2")
 panslarge.lyr.UTM <- spTransform(panslarge.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
 ## only take pans outside of floodplain
 # large
-landscapes <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Data from Marc", "gnp_landscapes_park&buffer_latlong") %>% 
+landscapes <- readOGR("gis/Data from Marc", "gnp_landscapes_park&buffer_latlong") %>% 
   spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
-floodplain <- landscapes[landscapes@data$NAME == "Rift Valley Riverine & Floodplain",]
-panslarge.offflood <- gDifference(panslarge.lyr.UTM, floodplain)
+floodplain <- landscapes[landscapes@data$NAME == "Rift Valley Riverine & Floodplain",] %>% 
+  gBuffer(byid=TRUE, width=0) # to deal with self-intersection issue
+panslarge.offflood <- gDifference(panslarge.lyr.UTM, floodplain_test)
 # all
 pans.offflood <- gDifference(pans.lyr.UTM, floodplain)
 
 ## Settlements
-settlements.lyr.UTM <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Settlements", "settlements_all_proj") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+settlements.lyr.UTM <- readOGR("gis/Spatial data/Settlements", "settlements_all_proj") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 # and get chitengo in there
-chitengo.lyr.UTM <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Settlements", "chitengo_latlong") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
+chitengo.lyr.UTM <- readOGR("gis/Spatial data/Settlements", "chitengo_latlong") %>% spTransform(CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 settlements.lyr.UTM <- bind(settlements.lyr.UTM, chitengo.lyr.UTM)
 
 ## Poaching
-poaching.all.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "All_Poaching")
+poaching.all.lyr <- readOGR("gis/Spatial data/Poaching", "All_Poaching")
 poaching.all.lyr.UTM <- spTransform(poaching.all.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
-poaching.high.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "HIGHPoaching")
+poaching.high.lyr <- readOGR("gis/Spatial data/Poaching", "HIGHPoaching")
 poaching.high.lyr.UTM <- spTransform(poaching.high.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
-poaching.low.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Poaching", "Low_Poaching")
+poaching.low.lyr <- readOGR("gis/Spatial data/Poaching", "Low_Poaching")
 poaching.low.lyr.UTM <- spTransform(poaching.low.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 
 ## quick poaching map
@@ -108,21 +107,21 @@ lines(poaching.high.lyr.UTM, col = "red", cex = 2)
 
 #### Import raster layers into R using raster.
 ```{r import raster layers}
-GDALinfo("GIS/Spatial data/Tree cover/BinMosFilterFinal.tif") # get information about raster data before importing
-tree <- raster("GIS/Spatial data/Tree cover/BinMosFilterFinal.tif")
+GDALinfo("gis/Spatial data/Tree cover/BinMosFilterFinal.tif") # get information about raster data before importing
+tree <- raster("gis/Spatial data/Tree cover/BinMosFilterFinal.tif")
 
 # Hansen tree layer
-tree.hansen <- raster("GIS/Spatial data/Tree cover/Hansen_10S_030E_treecover2010_v3.tif") 
+tree.hansen <- raster("gis/Spatial data/Tree cover/Hansen_10S_030E_treecover2010_v3.tif") 
 tree.hansen.UTM <- projectRaster(tree.hansen, crs = CRS("+proj=utm +south +zone=36 +ellps=WGS84"))
 #tree.hansen.mask <- mask(tree.hansen.UTM, boundary.lyr.UTM) # crop to park boundary before working with it, given its size
 
-GDALinfo("GIS/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif") # get information about raster data before importing
-termites <- raster("GIS/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif")
+GDALinfo("gis/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif") # get information about raster data before importing
+termites <- raster("gis/Spatial data/Termites/JulAugEdgeClip_MosNull_161026Reclass.tif")
 
 ## for some reason, the original fire layer didn't load, so I brought it into Arc, exported, and then it works fine
 ## However, this one is a few years outdated, so won't end up using this after all
-GDALinfo("GIS/Spatial data/Fire2/tif1.tif")
-fire.old <- raster("GIS/Spatial data/Fire2/tif1.tif")
+GDALinfo("gis/Spatial data/Fire2/tif1.tif")
+fire.old <- raster("gis/Spatial data/Fire2/tif1.tif")
 
 ```
 
@@ -130,48 +129,49 @@ fire.old <- raster("GIS/Spatial data/Fire2/tif1.tif")
 9/12/18: Explore this 2016 fire layer Marc sent
 ```{r fire exploration}
 ## Fire layer from 2016
-fire2016.lyr <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Spatial data/Fire2", "gnp_fire_2016") # use "." if in working directory, otherwise enter file path
+fire2016.lyr <- readOGR("gis/Spatial data/Fire2", "gnp_fire_2016") # use "." if in working directory, otherwise enter file path
 fire2016.lyr.UTM <- spTransform(fire2016.lyr, CRS("+proj=utm +south +zone=36 +ellps=WGS84")) # project in UTM
 plot(fire2016.lyr.UTM)
 ```
 
 9/21/18: Explore the new 2018 fire history layer (and annual layers) Josh sent. They were in Lat/Long, rather than UTM, which was causing issues when cropping and stacking. I tried to figure this out with projectRaster, but was running into inexplicable errors, and decided it was just more expedient to project each layer in Arc and re-export. The tif files for 2014-2018 are in the same Fire3 folder, with _utm appended to the end of the file names.
+
 ```{r fire exploration 2}
 # burn history
-GDALinfo("GIS/Spatial data/Fire3/times_int1.tif")
-fire <- raster("GIS/Spatial data/Fire2/tif1.tif")
+GDALinfo("gis/Spatial data/Fire3/times_int1.tif")
+fire <- raster("gis/Spatial data/Fire2/tif1.tif")
 plot(fire)
 
 # 2015 fire history
-# GDALinfo("GIS/Spatial data/Fire3/last_2015_int1.tif")
-# fire2015 <- raster("GIS/Spatial data/Fire3/last_2015_int1.tif")
+# GDALinfo("gis/Spatial data/Fire3/last_2015_int1.tif")
+# fire2015 <- raster("gis/Spatial data/Fire3/last_2015_int1.tif")
 # plot(fire2015)
 # crs(fire2015) # coordinate system is lat/long, this won't work
 # fire2015.proj <- projectRaster(fire2015, crs=termites) # get into same projection (UTM) as others, it's currently lat/long
 
 # 2014 fire history
-GDALinfo("GIS/Spatial data/Fire3/last_2014_int1_utm.tif")
-fire2014 <- raster("GIS/Spatial data/Fire3/last_2014_int1_utm.tif")
+GDALinfo("gis/Spatial data/Fire3/last_2014_int1_utm.tif")
+fire2014 <- raster("gis/Spatial data/Fire3/last_2014_int1_utm.tif")
 plot(fire2014)
 
 # 2015 fire history
-GDALinfo("GIS/Spatial data/Fire3/last_2015_int1_utm.tif")
-fire2015 <- raster("GIS/Spatial data/Fire3/last_2015_int1_utm.tif")
+GDALinfo("gis/Spatial data/Fire3/last_2015_int1_utm.tif")
+fire2015 <- raster("gis/Spatial data/Fire3/last_2015_int1_utm.tif")
 plot(fire2015)
 
 # 2016 fire history
-GDALinfo("GIS/Spatial data/Fire3/last_2016_int1_utm.tif")
-fire2016 <- raster("GIS/Spatial data/Fire3/last_2016_int1_utm.tif")
+GDALinfo("gis/Spatial data/Fire3/last_2016_int1_utm.tif")
+fire2016 <- raster("gis/Spatial data/Fire3/last_2016_int1_utm.tif")
 plot(fire2016)
 
 # 2017 fire history
-GDALinfo("GIS/Spatial data/Fire3/last_2017_int1_utm.tif")
-fire2017 <- raster("GIS/Spatial data/Fire3/last_2017_int1_utm.tif")
+GDALinfo("gis/Spatial data/Fire3/last_2017_int1_utm.tif")
+fire2017 <- raster("gis/Spatial data/Fire3/last_2017_int1_utm.tif")
 plot(fire2017)
 
 # 2018 fire history
-GDALinfo("GIS/Spatial data/Fire3/last_2018_int1_utm.tif")
-fire2018 <- raster("GIS/Spatial data/Fire3/last_2018_int1_utm.tif")
+GDALinfo("gis/Spatial data/Fire3/last_2018_int1_utm.tif")
+fire2018 <- raster("gis/Spatial data/Fire3/last_2018_int1_utm.tif")
 plot(fire2018)
 ```
 
@@ -461,13 +461,13 @@ Here is some code for calculating tree cover and termites in neighborhood of cel
 ```{r raster focal tree termite pan, eval = FALSE}
 ## tree cover
 
-tree.crop.100m <- focal(tree.crop, w = matrix(1/1201, nc = 101, nr = 101))
+tree.crop.100m <- focal(tree.crop, w = matrix(1/10201, nc = 101, nr = 101))
 writeRaster(tree.crop.100m, 'tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-tree.crop.250m <- focal(tree.crop, w = matrix(1/251001, nc = 251, nr = 251))
+tree.crop.250m <- focal(tree.crop, w = matrix(1/63001, nc = 251, nr = 251))
 writeRaster(tree.crop.250m, 'tree_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-tree.crop.500m <- focal(tree.crop, w = matrix(1/63001, nc = 501, nr = 501))
+tree.crop.500m <- focal(tree.crop, w = matrix(1/251001, nc = 501, nr = 501))
 writeRaster(tree.crop.500m, 'tree_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 tree.crop.1km <- focal(tree.crop, w = matrix(1/1002001, nc = 1001, nr = 1001))
@@ -674,7 +674,7 @@ For modeling and projecting, we need to normalize the rasters (set with mean of 
 Then, I clip the rasters to the camera grid, so that the the normalization will occur within the study area rather than within the entire area of the rectangle (which includes areas outside of the park to the south of the river, and the floodplain to the north). In retrospect, I probably should have clipped the rasters like this from the start, rather than using a rectangle. But here we are. (Note that the clip function produces a rectangle, and you need the mask function to clip to the exact boundaries of the polygon. Also note that mask takes WAY longer than clip.) (See: https://stackoverflow.com/questions/23073669/clipping-raster-using-shapefile-in-r-but-keeping-the-geometry-of-the-shapefile)
 ```{r mask rasters to camera grid}
 # read in camera polygons
-hexes <- readOGR("~/Dropbox/projects/GORONGOSA2/Camera Trap Grid/R/GIS/Camera layers", "CameraGridHexes")
+hexes <- readOGR("gis/Camera layers", "CameraGridHexes")
 
 # mask layers, export csv
 tree.crop.res.mask <- mask(tree.crop.res, hexes)
