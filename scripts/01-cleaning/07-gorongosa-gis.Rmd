@@ -471,16 +471,16 @@ Here is some code for calculating tree cover and termites in neighborhood of cel
 tree.crop <- raster("gis/Rasters for stacking/Masked rasters/tree.crop.res.mask.tif")
 
 tree.crop.100m <- focal(tree.crop, w = matrix(1/10201, nc = 101, nr = 101))
-writeRaster(tree.crop.100m, 'gis/Rasters for stacking/Focal rasters/tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(tree.crop.100m, 'tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 tree.crop.250m <- focal(tree.crop, w = matrix(1/63001, nc = 251, nr = 251))
-writeRaster(tree.crop.250m, 'tree_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(tree.crop.250m, 'gis/Rasters for stacking/Focal rasters/tree_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 tree.crop.500m <- focal(tree.crop, w = matrix(1/251001, nc = 501, nr = 501))
-writeRaster(tree.crop.500m, 'tree_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(tree.crop.500m, 'gis/Rasters for stacking/Focal rasters/tree_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 tree.crop.1km <- focal(tree.crop, w = matrix(1/1002001, nc = 1001, nr = 1001))
-writeRaster(tree.crop.1km, 'tree_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(tree.crop.1km, 'gis/Rasters for stacking/Focal rasters/tree_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 ## hansen tree
 tree.hansen.crop.res <- raster("GIS/Rasters for stacking/tree.hansen.crop.res.tif")
@@ -488,70 +488,70 @@ tree.hansen.250m <- focal(tree.hansen.crop.res, w = matrix(1/1002001, nc = 1001,
 
 ## termite mounds
 
-termites.crop.100m <- focal(termites.crop, w = matrix(1/1201, nc = 101, nr = 101))
-writeRaster(termites.crop.100m, 'termites_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+termites.crop.100m <- focal(termites.crop, w = matrix(1/10201, nc = 101, nr = 101))
+writeRaster(termites.crop.100m, 'gis/Rasters for stacking/Focal rasters/termites_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-termites.crop.250m <- focal(termites.crop, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(termites.crop.250m, 'termites_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+termites.crop.250m <- focal(termites.crop, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(termites.crop.250m, 'gis/Rasters for stacking/Focal rasters/termites_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-termites.crop.500m <- focal(termites.crop, w = matrix(1/63001, nc = 501, nr = 501))
-writeRaster(termites.crop.500m, 'termites_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+termites.crop.500m <- focal(termites.crop, w = matrix(1/251001, nc = 501, nr = 501))
+writeRaster(termites.crop.500m, 'gis/Rasters for stacking/Focal rasters/termites_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 termites.crop.1km <- focal(termites.crop, w = matrix(1/1002001, nc = 1001, nr = 1001))
-writeRaster(termites.crop.1km, 'termites_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(termites.crop.1km, 'gis/Rasters for stacking/Focal rasters/termites_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 ## pans
-pans.100m <- focal(pans.raster, w = matrix(1/1201, nc = 101, nr = 101))
-writeRaster(pans.100m, 'pans_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+pans.100m <- focal(pans.raster, w = matrix(1/10201, nc = 101, nr = 101))
+writeRaster(pans.100m, 'gis/Rasters for stacking/Focal rasters/pans_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-pans.250m <- focal(pans.raster, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(pans.250m, 'pans_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+pans.250m <- focal(pans.raster, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(pans.250m, 'gis/Rasters for stacking/Focal rasters/pans_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-pans.500m <- focal(pans.raster, w = matrix(1/63001, nc = 501, nr = 501))
-writeRaster(pans.500m, 'pans_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+pans.500m <- focal(pans.raster, w = matrix(1/251001, nc = 501, nr = 501))
+writeRaster(pans.500m, 'gis/Rasters for stacking/Focal rasters/pans_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 pans.1km <- focal(pans.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
-writeRaster(pans.1km, 'pans_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(pans.1km, 'gis/Rasters for stacking/Focal rasters/pans_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 
 # conservative pans (no channel, floodplain)
 
-panscon.100m <- focal(panscon.raster, w = matrix(1/1201, nc = 101, nr = 101))
-writeRaster(panscon.100m, 'GIS/Rasters for stacking/Focal rasters/panscon_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panscon.100m <- focal(panscon.raster, w = matrix(1/10201, nc = 101, nr = 101))
+writeRaster(panscon.100m, 'gis/Rasters for stacking/Focal rasters/panscon_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-panscon.250m <- focal(panscon.raster, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(panscon.250m, 'GIS/Rasters for stacking/Focal rasters/panscon_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panscon.250m <- focal(panscon.raster, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(panscon.250m, 'gis/Rasters for stacking/Focal rasters/panscon_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-panscon.500m <- focal(panscon.raster, w = matrix(1/63001, nc = 501, nr = 501))
-writeRaster(panscon.500m, 'GIS/Rasters for stacking/Focal rasters/panscon_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panscon.500m <- focal(panscon.raster, w = matrix(1/251001, nc = 501, nr = 501))
+writeRaster(panscon.500m, 'gis/Rasters for stacking/Focal rasters/panscon_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 panscon.1km <- focal(panscon.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
-writeRaster(panscon.1km, 'GIS/Rasters for stacking/Focal rasters/panscon_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(panscon.1km, 'gis/Rasters for stacking/Focal rasters/panscon_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 # large pans >1000m2 (no channel, floodplain)
 
-panslarge.raster <- raster("GIS/Spatial data/Pan_conservative/panslarge.raster.tif")
+panslarge.raster <- raster("gis/Spatial data/Pan_conservative/panslarge.raster.tif")
 
-panslarge.100m <- focal(panslarge.raster, w = matrix(1/1201, nc = 101, nr = 101))
-writeRaster(panslarge.100m, 'GIS/Rasters for stacking/Focal rasters/panslarge_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panslarge.100m <- focal(panslarge.raster, w = matrix(1/10201, nc = 101, nr = 101))
+writeRaster(panslarge.100m, 'gis/Rasters for stacking/Focal rasters/panslarge_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-panslarge.250m <- focal(panslarge.raster, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(panslarge.250m, 'GIS/Rasters for stacking/Focal rasters/panslarge_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panslarge.250m <- focal(panslarge.raster, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(panslarge.250m, 'gis/Rasters for stacking/Focal rasters/panslarge_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-panslarge.500m <- focal(panslarge.raster, w = matrix(1/63001, nc = 501, nr = 501))
-writeRaster(panslarge.500m, 'GIS/Rasters for stacking/Focal rasters/panslarge_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panslarge.500m <- focal(panslarge.raster, w = matrix(1/251001, nc = 501, nr = 501))
+writeRaster(panslarge.500m, 'gis/Rasters for stacking/Focal rasters/panslarge_500m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 panslarge.1km <- focal(panslarge.raster, w = matrix(1/1002001, nc = 1001, nr = 1001))
-writeRaster(panslarge.1km, 'GIS/Rasters for stacking/Focal rasters/panslarge_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(panslarge.1km, 'gis/Rasters for stacking/Focal rasters/panslarge_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 # only pans off of floodplain
-panslarge.offflood.raster <- raster('GIS/Rasters for stacking/panslarge.offflood.raster.tif')
-panslarge.offflood.250m <- focal(panslarge.offflood.raster, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(panslarge.offflood.250m, 'GIS/Rasters for stacking/Focal rasters/panslarge.offflood_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+panslarge.offflood.raster <- raster('gis/Rasters for stacking/panslarge.offflood.raster.tif')
+panslarge.offflood.250m <- focal(panslarge.offflood.raster, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(panslarge.offflood.250m, 'gis/Rasters for stacking/Focal rasters/panslarge.offflood_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
-pans.offflood.raster <- raster('GIS/Rasters for stacking/pans.offflood.tif')
-pans.offflood.250m <- focal(pans.offflood.raster, w = matrix(1/251001, nc = 251, nr = 251))
-writeRaster(pans.offflood.250m, 'GIS/Rasters for stacking/Focal rasters/pans.offflood.250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+pans.offflood.raster <- raster('gis/Rasters for stacking/pans.offflood.tif')
+pans.offflood.250m <- focal(pans.offflood.raster, w = matrix(1/63001, nc = 251, nr = 251))
+writeRaster(pans.offflood.250m, 'gis/Rasters for stacking/Focal rasters/pans.offflood.250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 ```
 
 For some reason, the termite mound layers are in the correct resolution, but the tree and pan focals are not stacking properly—the resolution is slightly off. So, we resample them here and re-export at correct resolution.
