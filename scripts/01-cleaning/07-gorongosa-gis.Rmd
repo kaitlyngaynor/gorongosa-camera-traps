@@ -381,7 +381,13 @@ plot(settlement.dist)
 writeRaster(settlement.dist, 'settlement.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
 ```
 
+Distance to Chitengo.
+```{r}
+chitengo.dist <- distanceFromPoints(termites.crop, chitengo.lyr.UTM)
+plot(chitengo.dist)
+writeRaster(chitengo.dist, 'gis/Rasters for stacking/Distance rasters/chitengo.distance.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW")) # export raster as .tif
 
+```
 
 Distance to park boundary. The layer is a polygon, so I first converted it to lines.
 ``` {r distance park, eval = FALSE}
@@ -681,111 +687,114 @@ hexes <- readOGR("gis/Camera layers", "CameraGridHexes")
 
 # mask layers, export csv
 tree.crop.res.mask <- mask(tree.crop.res, hexes)
-writeRaster(tree.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.hansen.crop.res.mask <- mask(tree.hansen.crop.res, hexes)
-writeRaster(tree.hansen.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.hansen.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.hansen.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.hansen.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.mask <- mask(termites.crop, hexes)
-writeRaster(termites.crop.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.raster.mask <- mask(pans.raster, hexes)
-writeRaster(pans.raster.mask, 'GIS/Rasters for stacking/Masked rasters/pans.raster.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.raster.mask, 'gis/Rasters for stacking/Masked rasters/pans.raster.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.all.raster.res.mask <- mask(poaching.all.raster.res, hexes)
-writeRaster(poaching.all.raster.res.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.all.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.all.raster.res.mask, 'gis/Rasters for stacking/Masked rasters/poaching.all.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.high.raster.res.mask <- mask(poaching.high.raster.res, hexes)
-writeRaster(poaching.high.raster.res.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.high.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.high.raster.res.mask, 'gis/Rasters for stacking/Masked rasters/poaching.high.raster.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.3levels.mask <- mask(poaching.3levels.mask, hexes)
-writeRaster(poaching.3levels.mask, 'GIS/Rasters for stacking/Masked rasters/poaching.3levels.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.3levels.mask, 'gis/Rasters for stacking/Masked rasters/poaching.3levels.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire.crop.res.mask <- mask(fire.crop.res, hexes)
-writeRaster(fire.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2014.crop.res.mask <- mask(fire2014.crop.res, hexes)
-writeRaster(fire2014.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2014.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2014.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2014.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2015.crop.res.mask <- mask(fire2015.crop.res, hexes)
-writeRaster(fire2015.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2015.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2015.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2015.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2016.crop.res.mask <- mask(fire2016.crop.res, hexes)
-writeRaster(fire2016.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2016.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2016.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2016.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2017.crop.res.mask <- mask(fire2017.crop.res, hexes)
-writeRaster(fire2017.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2017.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2017.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2017.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2018.crop.res.mask <- mask(fire2018.crop.res, hexes)
-writeRaster(fire2018.crop.res.mask, 'GIS/Rasters for stacking/Masked rasters/fire2018.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2018.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2018.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.100m.res.mask <- mask(tree.crop.100m.res, hexes)
-writeRaster(tree.crop.100m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.100m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.250m.res.mask <- mask(tree.crop.250m.res, hexes)
-writeRaster(tree.crop.250m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.250m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.500m.res.mask <- mask(tree.crop.500m.res, hexes)
-writeRaster(tree.crop.500m.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.500m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.1km.res.mask <- mask(tree.crop.1km.res, hexes)
-writeRaster(tree.crop.1km.res.mask, 'GIS/Rasters for stacking/Masked rasters/tree.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.1km.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.100m.mask <- mask(termites.crop.100m, hexes)
-writeRaster(termites.crop.100m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.100m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.100m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.100m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.250m.mask <- mask(termites.crop.250m, hexes)
-writeRaster(termites.crop.250m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.250m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.500m.mask <- mask(termites.crop.500m, hexes)
-writeRaster(termites.crop.500m.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.500m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.500m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.500m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.1km.mask <- mask(termites.crop.1km, hexes)
-writeRaster(termites.crop.1km.mask, 'GIS/Rasters for stacking/Masked rasters/termites.crop.1km.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.1km.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.1km.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.100m.res.mask <- mask(pans.crop.100m.res, hexes)
-writeRaster(pans.crop.100m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.100m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.250m.res.mask <- mask(pans.crop.250m.res, hexes)
-writeRaster(pans.crop.250m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.250m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.500m.res.mask <- mask(pans.crop.500m.res, hexes)
-writeRaster(pans.crop.500m.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.500m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.1km.res.mask <- mask(pans.crop.1km.res, hexes)
-writeRaster(pans.crop.1km.res.mask, 'GIS/Rasters for stacking/Masked rasters/pans.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.1km.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 boundary.dist.mask <- mask(boundary.dist, hexes)
-writeRaster(boundary.dist.mask, 'GIS/Rasters for stacking/Masked rasters/boundary.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(boundary.dist.mask, 'gis/Rasters for stacking/Masked rasters/boundary.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 rivers.dist.mask <- mask(rivers.dist, hexes)
-writeRaster(rivers.dist.mask, 'GIS/Rasters for stacking/Masked rasters/rivers.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(rivers.dist.mask, 'gis/Rasters for stacking/Masked rasters/rivers.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 road.dist.mask <- mask(road.dist, hexes)
-writeRaster(road.dist.mask, 'GIS/Rasters for stacking/Masked rasters/road.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(road.dist.mask, 'gis/Rasters for stacking/Masked rasters/road.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 roadsmajor.dist.mask <- mask(roadsmajor.dist, hexes)
-writeRaster(roadsmajor.dist.mask, 'GIS/Rasters for stacking/Masked rasters/roadsmajor.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(roadsmajor.dist.mask, 'gis/Rasters for stacking/Masked rasters/roadsmajor.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 urema.dist.mask <- mask(urema.dist, hexes)
-writeRaster(urema.dist.mask, 'GIS/Rasters for stacking/Masked rasters/urema.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(urema.dist.mask, 'gis/Rasters for stacking/Masked rasters/urema.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.dist.mask <- mask(pans.dist, hexes)
-writeRaster(pans.dist.mask, 'GIS/Rasters for stacking/Masked rasters/pans.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.dist.mask, 'gis/Rasters for stacking/Masked rasters/pans.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 settlement.dist.mask <- mask(settlement.dist, hexes)
-writeRaster(settlement.dist.mask, 'GIS/Rasters for stacking/Masked rasters/settlement.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(settlement.dist.mask, 'gis/Rasters for stacking/Masked rasters/settlement.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-panscon.250m <- raster("GIS/Rasters for stacking/Focal rasters/panscon_250m.tif")
-panscon.250m.mask <- mask(panscon.250m, hexes)
-writeRaster(panscon.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+chitengo.dist.mask <- mask(chitengo.dist, hexes)
+writeRaster(chitengo.dist.mask, 'gis/Rasters for stacking/Masked rasters/chitengo.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-panscon.250m <- raster("GIS/Rasters for stacking/Focal rasters/panscon_250m.tif")
+panscon.250m <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m.tif")
 panscon.250m.mask <- mask(panscon.250m, hexes)
-writeRaster(panscon.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panscon.250m <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m.tif")
+panscon.250m.mask <- mask(panscon.250m, hexes)
+writeRaster(panscon.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 panscon.offflood.250m.mask <- mask(panscon.offflood.250m, hexes)
-writeRaster(panscon.offflood.250m.mask, 'GIS/Rasters for stacking/Masked rasters/panscon.offflood.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.offflood.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.offflood.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 # check that it worked (it did!)
 plot(tree.crop.res)
@@ -799,109 +808,112 @@ Then this code normalizes them and exports csvs into a new folder of normalized 
 ```{r normalize}
 # normalize and export
 tree.crop.res.norm <- normImage(tree.crop.res.mask, norm = TRUE)
-writeRaster(tree.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.hansen.crop.res.norm <- normImage(tree.hansen.crop.res.mask, norm = TRUE)
-writeRaster(tree.hansen.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.hansen.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.hansen.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.hansen.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.norm <- normImage(termites.crop.mask, norm = TRUE)
-writeRaster(termites.crop.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.norm, 'gis/Rasters for stacking/Normalized and masked rasters/termites.crop.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.raster.norm <- normImage(pans.raster.mask, norm = TRUE)
-writeRaster(pans.raster.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.raster.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.raster.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.raster.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.all.raster.res.norm <- normImage(poaching.all.raster.res.mask, norm = TRUE)
-writeRaster(poaching.all.raster.res.norm , 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.all.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.all.raster.res.norm , 'gis/Rasters for stacking/Normalized and masked rasters/poaching.all.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.high.raster.res.norm <- normImage(poaching.high.raster.res.mask, norm = TRUE)
-writeRaster(poaching.high.raster.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.high.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.high.raster.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/poaching.high.raster.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 poaching.3levels.mask.norm <- normImage(poaching.3levels.mask, norm = TRUE)
-writeRaster(poaching.3levels.mask.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/poaching.3levels.mask.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(poaching.3levels.mask.norm, 'gis/Rasters for stacking/Normalized and masked rasters/poaching.3levels.mask.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire.crop.res.norm <- normImage(fire.crop.res.mask, norm = TRUE)
-writeRaster(fire.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2014.crop.res.norm <- normImage(fire2014.crop.res.mask, norm = TRUE)
-writeRaster(fire2014.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2014.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2014.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire2014.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2015.crop.res.norm <- normImage(fire2015.crop.res.mask, norm = TRUE)
-writeRaster(fire2015.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2015.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2015.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire2015.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2016.crop.res.norm <- normImage(fire2016.crop.res.mask, norm = TRUE)
-writeRaster(fire2016.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2016.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2016.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire2016.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2017.crop.res.norm <- normImage(fire2017.crop.res.mask, norm = TRUE)
-writeRaster(fire2017.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2017.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2017.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire2017.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 fire2018.crop.res.norm <- normImage(fire2018.crop.res.mask, norm = TRUE)
-writeRaster(fire2018.crop.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/fire2018.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(fire2018.crop.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/fire2018.crop.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.100m.res.norm <- normImage(tree.crop.100m.res.mask, norm = TRUE)
-writeRaster(tree.crop.100m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.100m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.250m.res.norm <- normImage(tree.crop.250m.res.mask, norm = TRUE)
-writeRaster(tree.crop.250m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.250m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.500m.res.norm <- normImage(tree.crop.500m.res.mask, norm = TRUE)
-writeRaster(tree.crop.500m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.500m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 tree.crop.1km.res.norm <- normImage(tree.crop.1km.res.mask, norm = TRUE)
-writeRaster(tree.crop.1km.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/tree.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(tree.crop.1km.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/tree.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.100m.norm <- normImage(termites.crop.100m.mask, norm = TRUE)
-writeRaster(termites.crop.100m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.100m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.100m.norm, 'gis/Rasters for stacking/Normalized and masked rasters/termites.crop.100m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.250m.norm <- normImage(termites.crop.250m.mask, norm = TRUE)
-writeRaster(termites.crop.250m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.250m.norm, 'gis/Rasters for stacking/Normalized and masked rasters/termites.crop.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.500m.norm <- normImage(termites.crop.500m.mask, norm = TRUE)
-writeRaster(termites.crop.500m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.500m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.500m.norm, 'gis/Rasters for stacking/Normalized and masked rasters/termites.crop.500m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 termites.crop.1km.norm <- normImage(termites.crop.1km.mask, norm = TRUE)
-writeRaster(termites.crop.1km.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/termites.crop.1km.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(termites.crop.1km.norm, 'gis/Rasters for stacking/Normalized and masked rasters/termites.crop.1km.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.100m.res.norm <- normImage(pans.crop.100m.res.mask, norm = TRUE)
-writeRaster(pans.crop.100m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.100m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.crop.100m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.250m.res.norm <- normImage(pans.crop.250m.res.mask, norm = TRUE)
-writeRaster(pans.crop.250m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.250m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.crop.250m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.500m.res.norm <- normImage(pans.crop.500m.res.mask, norm = TRUE)
-writeRaster(pans.crop.500m.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.500m.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.crop.500m.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.crop.1km.res.norm <- normImage(pans.crop.1km.res.mask, norm = TRUE)
-writeRaster(pans.crop.1km.res.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.crop.1km.res.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.crop.1km.res.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 boundary.dist.norm <- normImage(boundary.dist.mask, norm = TRUE)
-writeRaster(boundary.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/boundary.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(boundary.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/boundary.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 rivers.dist.norm <- normImage(rivers.dist.mask, norm = TRUE)
-writeRaster(rivers.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/rivers.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(rivers.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/rivers.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 road.dist.norm <- normImage(road.dist.mask, norm = TRUE)
-writeRaster(road.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/road.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(road.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/road.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 roadsmajor.dist.norm <- normImage(roadsmajor.dist.mask, norm = TRUE)
-writeRaster(roadsmajor.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/roadsmajor.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(roadsmajor.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/roadsmajor.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 urema.dist.norm <- normImage(urema.dist.mask, norm = TRUE)
-writeRaster(urema.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/urema.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(urema.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/urema.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 pans.dist.norm <- normImage(pans.dist.mask, norm = TRUE)
-writeRaster(pans.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/pans.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(pans.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/pans.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 settlement.dist.norm <- normImage(settlement.dist.mask, norm = TRUE)
-writeRaster(settlement.dist.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/settlement.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(settlement.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/settlement.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+chitengo.dist.norm <- normImage(chitengo.dist.mask, norm = TRUE)
+writeRaster(chitengo.dist.norm, 'gis/Rasters for stacking/Normalized and masked rasters/chitengo.dist.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 panscon.250.norm <- normImage(panscon.250.mask, norm = TRUE)
-writeRaster(panscon.250.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.250.norm, 'gis/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 panslarge.250.norm <- normImage(panslarge.250.mask, norm = TRUE)
-writeRaster(panslarge.250.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panslarge.250.norm, 'gis/Rasters for stacking/Normalized and masked rasters/panscon.250.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 panscon.offflood.250m.norm <- normImage(panscon.offflood.250m.mask, norm = TRUE)
-writeRaster(panscon.offflood.250m.norm, 'GIS/Rasters for stacking/Normalized and masked rasters/panscon.offflood.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+writeRaster(panscon.offflood.250m.norm, 'gis/Rasters for stacking/Normalized and masked rasters/panscon.offflood.250m.norm.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 # can see how the function normalized the raster values (shown here for one layer)
 hist(termites.crop.100m)
