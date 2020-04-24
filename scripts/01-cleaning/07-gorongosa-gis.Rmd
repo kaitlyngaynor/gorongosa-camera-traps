@@ -11,6 +11,7 @@ editor_options:
 
 ## Getting started
 
+
 Set working directory, load libraries.
 ```{r setup}
 library(sp) # create and reproject spatial objects
