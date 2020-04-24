@@ -501,6 +501,10 @@ termites.crop.1km <- focal(termites.crop, w = matrix(1/1002001, nc = 1001, nr = 
 writeRaster(termites.crop.1km, 'gis/Rasters for stacking/Focal rasters/termites_1000m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 ## pans
+
+# bring back in pan if you need it
+pans.raster <- raster("gis/Rasters for stacking/Masked rasters/pans.raster.mask.tif")
+
 pans.100m <- focal(pans.raster, w = matrix(1/10201, nc = 101, nr = 101))
 writeRaster(pans.100m, 'gis/Rasters for stacking/Focal rasters/pans_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
