@@ -469,10 +469,10 @@ Here is some code for calculating tree cover and termites in neighborhood of cel
 ## tree cover
 
 # bring back in tree if needed
-tree.crop <- raster("gis/Rasters for stacking/Masked rasters/tree.crop.res.mask.tif")
+tree.crop <- raster("gis/Rasters for stacking/tree.crop.res.tif")
 
 tree.crop.100m <- focal(tree.crop, w = matrix(1/10201, nc = 101, nr = 101))
-writeRaster(tree.crop.100m, 'tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+writeRaster(tree.crop.100m, 'gis/Rasters for stacking/Focal rasters/tree_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 tree.crop.250m <- focal(tree.crop, w = matrix(1/63001, nc = 251, nr = 251))
 writeRaster(tree.crop.250m, 'gis/Rasters for stacking/Focal rasters/tree_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
