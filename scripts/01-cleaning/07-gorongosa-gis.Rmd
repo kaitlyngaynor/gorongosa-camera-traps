@@ -524,6 +524,8 @@ writeRaster(pans.1km, 'gis/Rasters for stacking/Focal rasters/pans_1000m.tif', f
 
 # conservative pans (no channel, floodplain)
 
+panscon.raster <- raster("gis/Rasters for stacking/panscon.raster.tif")
+
 panscon.100m <- focal(panscon.raster, w = matrix(1/10201, nc = 101, nr = 101))
 writeRaster(panscon.100m, 'gis/Rasters for stacking/Focal rasters/panscon_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
@@ -538,7 +540,7 @@ writeRaster(panscon.1km, 'gis/Rasters for stacking/Focal rasters/panscon_1000m.t
 
 # large pans >1000m2 (no channel, floodplain)
 
-panslarge.raster <- raster("gis/Spatial data/Pan_conservative/panslarge.raster.tif")
+panslarge.raster <- raster("gis/Rasters for stacking/panslarge.raster.tif")
 
 panslarge.100m <- focal(panslarge.raster, w = matrix(1/10201, nc = 101, nr = 101))
 writeRaster(panslarge.100m, 'gis/Rasters for stacking/Focal rasters/panslarge_100m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
@@ -554,10 +556,12 @@ writeRaster(panslarge.1km, 'gis/Rasters for stacking/Focal rasters/panslarge_100
 
 # only pans off of floodplain
 panslarge.offflood.raster <- raster('gis/Rasters for stacking/panslarge.offflood.raster.tif')
+
 panslarge.offflood.250m <- focal(panslarge.offflood.raster, w = matrix(1/63001, nc = 251, nr = 251))
 writeRaster(panslarge.offflood.250m, 'gis/Rasters for stacking/Focal rasters/panslarge.offflood_250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 pans.offflood.raster <- raster('gis/Rasters for stacking/pans.offflood.tif')
+
 pans.offflood.250m <- focal(pans.offflood.raster, w = matrix(1/63001, nc = 251, nr = 251))
 writeRaster(pans.offflood.250m, 'gis/Rasters for stacking/Focal rasters/pans.offflood.250m.tif', format = "GTiff", overwrite = TRUE, options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 ```
