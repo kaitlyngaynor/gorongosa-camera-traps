@@ -712,6 +712,30 @@ For modeling and projecting, we need to normalize the rasters (set with mean of 
 #### Masking rasters
 
 Then, I clip the rasters to the camera grid, so that the the normalization will occur within the study area rather than within the entire area of the rectangle (which includes areas outside of the park to the south of the river, and the floodplain to the north). In retrospect, I probably should have clipped the rasters like this from the start, rather than using a rectangle. But here we are. (Note that the clip function produces a rectangle, and you need the mask function to clip to the exact boundaries of the polygon. Also note that mask takes WAY longer than clip.) (See: https://stackoverflow.com/questions/23073669/clipping-raster-using-shapefile-in-r-but-keeping-the-geometry-of-the-shapefile)
+```{r}
+# bring in focal layers again to redo them
+tree_100m_res <- raster("gis/Rasters for stacking/Focal rasters/tree_100m_res.tif")
+tree_250m_res <- raster("gis/Rasters for stacking/Focal rasters/tree_250m_res.tif")
+tree_500m_res <- raster("gis/Rasters for stacking/Focal rasters/tree_500m_res.tif")
+tree_1km_res <- raster("gis/Rasters for stacking/Focal rasters/tree_1km_res.tif")
+
+termites_100m <- raster("gis/Rasters for stacking/Focal rasters/termites_100m.tif")
+termites_250m <- raster("gis/Rasters for stacking/Focal rasters/termites_250m.tif")
+termites_500m <- raster("gis/Rasters for stacking/Focal rasters/termites_500m.tif")
+termites_1km <- raster("gis/Rasters for stacking/Focal rasters/termites_1000m.tif")
+
+pans_100m_res <- raster("gis/Rasters for stacking/Focal rasters/pans_100m_res.tif")
+pans_250m_res <- raster("gis/Rasters for stacking/Focal rasters/pans_250m_res.tif")
+pans_500m_res <- raster("gis/Rasters for stacking/Focal rasters/pans_500m_res.tif")
+pans_1km_res <- raster("gis/Rasters for stacking/Focal rasters/pans_1km_res.tif")
+
+panslarge_250m_res <- raster("gis/Rasters for stacking/Focal rasters/panslarge_250m_res.tif")
+panslarge.offflood_250m_res <- raster("gis/Rasters for stacking/Focal rasters/panslarge.offflood_250m_ress.tif")
+panscon_250m_res <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m_ress.tif")
+pans.offflood_250m_res <- raster("gis/Rasters for stacking/Focal rasters/pans.offflood_250m_ress.tif")
+```
+
+
 ```{r mask rasters to camera grid}
 # read in camera polygons
 hexes <- readOGR("gis/Camera layers", "CameraGridHexes")
@@ -756,41 +780,41 @@ writeRaster(fire2017.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fir
 fire2018.crop.res.mask <- mask(fire2018.crop.res, hexes)
 writeRaster(fire2018.crop.res.mask, 'gis/Rasters for stacking/Masked rasters/fire2018.crop.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-tree.crop.100m.res.mask <- mask(tree.crop.100m.res, hexes)
-writeRaster(tree.crop.100m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+tree_100m_res_mask <- mask(tree_100m_res, hexes)
+writeRaster(tree_100m_res_mask, 'gis/Rasters for stacking/Masked rasters/tree_100m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-tree.crop.250m.res.mask <- mask(tree.crop.250m.res, hexes)
-writeRaster(tree.crop.250m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+tree_250m_res_mask <- mask(tree_250m_res, hexes)
+writeRaster(tree_250m_res_mask, 'gis/Rasters for stacking/Masked rasters/tree_250m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-tree.crop.500m.res.mask <- mask(tree.crop.500m.res, hexes)
-writeRaster(tree.crop.500m.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+tree_500m_res_mask <- mask(tree_500m_res, hexes)
+writeRaster(tree_500m_res_mask, 'gis/Rasters for stacking/Masked rasters/tree_500m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-tree.crop.1km.res.mask <- mask(tree.crop.1km.res, hexes)
-writeRaster(tree.crop.1km.res.mask, 'gis/Rasters for stacking/Masked rasters/tree.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+tree_1km_res_mask <- mask(tree_1km_res, hexes)
+writeRaster(tree_1km_res_mask, 'gis/Rasters for stacking/Masked rasters/tree_1km_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-termites.crop.100m.mask <- mask(termites.crop.100m, hexes)
-writeRaster(termites.crop.100m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.100m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+termites_100m_mask <- mask(termites_100m, hexes)
+writeRaster(termites_100m_mask, 'gis/Rasters for stacking/Masked rasters/termites_100m_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-termites.crop.250m.mask <- mask(termites.crop.250m, hexes)
-writeRaster(termites.crop.250m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+termites_250m_mask <- mask(termites_250m, hexes)
+writeRaster(termites_250m_mask, 'gis/Rasters for stacking/Masked rasters/termites_250m_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-termites.crop.500m.mask <- mask(termites.crop.500m, hexes)
-writeRaster(termites.crop.500m.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.500m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+termites_500m_mask <- mask(termites_500m, hexes)
+writeRaster(termites_500m_mask, 'gis/Rasters for stacking/Masked rasters/termites_500m_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-termites.crop.1km.mask <- mask(termites.crop.1km, hexes)
-writeRaster(termites.crop.1km.mask, 'gis/Rasters for stacking/Masked rasters/termites.crop.1km.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+termites_1km_mask <- mask(termites_1km, hexes)
+writeRaster(termites_1km_mask, 'gis/Rasters for stacking/Masked rasters/termites_1km_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-pans.crop.100m.res.mask <- mask(pans.crop.100m.res, hexes)
-writeRaster(pans.crop.100m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.100m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+pans_100m_res_mask <- mask(pans_100m_res, hexes)
+writeRaster(pans_100m_res_mask, 'gis/Rasters for stacking/Masked rasters/pans_100m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-pans.crop.250m.res.mask <- mask(pans.crop.250m.res, hexes)
-writeRaster(pans.crop.250m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.250m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+pans_250m_res_mask <- mask(pans_250m_res, hexes)
+writeRaster(pans_250m_res_mask, 'gis/Rasters for stacking/Masked rasters/pans_250m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-pans.crop.500m.res.mask <- mask(pans.crop.500m.res, hexes)
-writeRaster(pans.crop.500m.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.500m.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+pans_500m_res_mask <- mask(pans_500m_res, hexes)
+writeRaster(pans_500m_res_mask, 'gis/Rasters for stacking/Masked rasters/pans_500m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-pans.crop.1km.res.mask <- mask(pans.crop.1km.res, hexes)
-writeRaster(pans.crop.1km.res.mask, 'gis/Rasters for stacking/Masked rasters/pans.crop.1km.res.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+pans_1km_res_mask <- mask(pans_1km_res, hexes)
+writeRaster(pans_1km_res_mask, 'gis/Rasters for stacking/Masked rasters/pans_1km_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 boundary.dist.mask <- mask(boundary.dist, hexes)
 writeRaster(boundary.dist.mask, 'gis/Rasters for stacking/Masked rasters/boundary.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
@@ -816,21 +840,33 @@ writeRaster(settlement.dist.mask, 'gis/Rasters for stacking/Masked rasters/settl
 chitengo.dist.mask <- mask(chitengo.dist, hexes)
 writeRaster(chitengo.dist.mask, 'gis/Rasters for stacking/Masked rasters/chitengo.dist.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-panscon.250m <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m.tif")
-panscon.250m.mask <- mask(panscon.250m, hexes)
-writeRaster(panscon.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+panscon_250m_res_mask <- mask(panscon_250m_res, hexes)
+writeRaster(panscon_250m_res_mask, 'gis/Rasters for stacking/Masked rasters/panscon_250m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-panscon.250m <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m.tif")
-panscon.250m.mask <- mask(panscon.250m, hexes)
-writeRaster(panscon.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+panslarge_250m_res_mask <- mask(panslarge_250m_res, hexes)
+writeRaster(panslarge_250m_res_mask, 'gis/Rasters for stacking/Masked rasters/panslarge_250m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
-panscon.offflood.250m.mask <- mask(panscon.offflood.250m, hexes)
-writeRaster(panscon.offflood.250m.mask, 'gis/Rasters for stacking/Masked rasters/panscon.offflood.250m.mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+pans.offflood_250m_mask <- mask(pans.offflood_250m_res, hexes)
+writeRaster(pans.offflood_250m_mask, 'gis/Rasters for stacking/Masked rasters/pans.offflood_250m_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panslarge.offflood_250m_res_mask <- mask(panslarge.offflood_250m_res, hexes)
+writeRaster(panslarge.offflood_250m_res_mask, 'gis/Rasters for stacking/Masked rasters/panslarge.offflood_250m_res_mask.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
 
 # check that it worked (it did!)
 plot(tree.crop.res)
 plot(tree.crop.res.clip)
 plot(hexes, add=TRUE, lwd=2)
+
+test_stack <- raster::stack(pans.offflood_250m_mask, 
+                            panscon_250m_res_mask, 
+                            panslarge.offflood_250m_res_mask,
+                            termites_100m_mask, termites_250m_mask, 
+                            termites_500m_mask, termites_1km_mask,
+                            tree_100m_res_mask, tree_250m_res_mask,
+                            tree_500m_res_mask, tree_1km_res_mask,
+                            pans_100m_res_mask, pans_250m_res_mask,
+                            pans_500m_res_mask, pans_1km_res_mask)
 ```
 
 #### Normalizing rasters
