@@ -568,6 +568,9 @@ writeRaster(pans.offflood.250m, 'gis/Rasters for stacking/Focal rasters/pans.off
 
 For some reason, the termite mound layers are in the correct resolution, but the tree and pan focals are not stacking properly—the resolution is slightly off. So, we resample them here and re-export at correct resolution.
 ```{r resample focal rasters}
+# if needed
+termites.crop <- raster("gis/Rasters for stacking/termites.crop.tif")
+
 # trees
 tree_100m <- raster("gis/Rasters for stacking/Focal rasters/tree_100m.tif")
 tree_250m <- raster("gis/Rasters for stacking/Focal rasters/tree_250m.tif")
@@ -601,24 +604,27 @@ writeRaster(pans_500m_res, 'gis/Rasters for stacking/Focal rasters/pans_500m_res
 writeRaster(pans_1km_res, 'gis/Rasters for stacking/Focal rasters/pans_1km_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 ### other pan cons layers here once they are done
-panscon_250m_res <- raster::resample(panscon_250m, termites.crop, method = 'bilinear')
+panslarge_250m <- raster("gis/Rasters for stacking/Focal rasters/panslarge_250m.tif")
 panslarge_250m_res <- raster::resample(panslarge_250m, termites.crop, method = 'bilinear')
+writeRaster(panslarge_250m_res, 'gis/Rasters for stacking/Focal rasters/panslarge_250m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
+panscon_250m <- raster("gis/Rasters for stacking/Focal rasters/panscon_250m.tif")
+panscon_250m_res <- raster::resample(panscon_250m, termites.crop, method = 'bilinear')
+writeRaster(panscon_250m_res, 'gis/Rasters for stacking/Focal rasters/panscon_250m_ress.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+panslarge.offflood_250m <- raster("gis/Rasters for stacking/Focal rasters/panslarge.offflood_250m.tif")
+panslarge.offflood_250m_res <- raster::resample(panslarge.offflood_250m, termites.crop, method = 'bilinear')
+writeRaster(panslarge.offflood_250m_res, 'gis/Rasters for stacking/Focal rasters/panslarge.offflood_250m_ress.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
+
+pans.offflood_250m <- raster("gis/Rasters for stacking/Focal rasters/pans.offflood.250m.tif")
+pans.offflood_250m_res <- raster::resample(pans.offflood_250m, termites.crop, method = 'bilinear')
+writeRaster(pans.offflood_250m_res, 'gis/Rasters for stacking/Focal rasters/pans.offflood_250m_ress.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 
 ## Or this short for-loop does the same thing, maybe? Not actually sure, didn't have patience to run it.
-for (i in c(tree.crop.100m, tree.crop.250m, tree.crop.500m, tree.crop.1km, pans.crop.100m, pans.crop.250m, pans.crop.500m)){
-  i.res <- raster::resample(i, termites.crop, method='bilinear')
-}
+#for (i in c(tree.crop.100m, tree.crop.250m, tree.crop.500m, tree.crop.1km, pans.crop.100m, pans.crop.250m, pans.crop.500m)){
+#  i.res <- raster::resample(i, termites.crop, method='bilinear')
+#}
 
-
-writeRaster(panscon_100m_res, 'gis/Rasters for stacking/Focal rasters/panscon_100m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panscon_250m_res, 'gis/Rasters for stacking/Focal rasters/panscon_250m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panscon_500m_res, 'gis/Rasters for stacking/Focal rasters/panscon_500m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panscon_1km_res, 'gis/Rasters for stacking/Focal rasters/panscon_1km_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panslarge_100m_res, 'gis/Rasters for stacking/Focal rasters/panslarge_100m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panslarge_250m_res, 'gis/Rasters for stacking/Focal rasters/panslarge_250m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panslarge.crop.500m_res, 'gis/Rasters for stacking/Focal rasters/panslarge.crop.500m_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
-writeRaster(panslarge.crop.1km_res, 'gis/Rasters for stacking/Focal rasters/panslarge.crop.1km_res.tif', format="GTiff", overwrite=TRUE, options=c("INTERLEAVE=BAND","COMPRESS=LZW"))
 ```
 
 
