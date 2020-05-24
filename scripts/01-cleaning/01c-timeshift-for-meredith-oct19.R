@@ -17,7 +17,7 @@ timeShiftTable <- data.frame(folder = c("B07", "H07"),
                              sign = c("+", "+"),
                              offset = c("0:0:1685 10:8:0", "0:0:1609 11:18:0"))
 
-timeShiftImages(inDir                = "To correct",
+timeShiftImages(inDir                = "To_fix",
                 timeShiftTable       = timeShiftTable,
                 stationCol           = "folder",
                 hasCameraFolders     = FALSE,
