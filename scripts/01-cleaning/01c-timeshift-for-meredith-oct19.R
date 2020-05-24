@@ -2,7 +2,7 @@ library(camtrapR)
 
 # I recommend making a copy of the two folders to be shifted somewhere else, just in case anything goes wrong
 
-# set working directory as the directory that contains the folder with the camera folders in it
+# set working directory as the directory that contains the folder (here named "To_fix") with the camera folders in it
 # here is what the directory structure should look like:
 # — Working directory
 # --- To_fix
