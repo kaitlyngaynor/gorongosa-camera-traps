@@ -47,6 +47,7 @@ vignettes/*.pdf
 figures/
 results/
 data/
+/grid-expansion-2025/files
 
 
 # ignore knit file
