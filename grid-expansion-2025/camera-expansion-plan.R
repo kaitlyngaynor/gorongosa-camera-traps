@@ -56,7 +56,7 @@ ggplot() +
         label = Site_ID),
     hjust = -0.1, vjust = -0.5, size = 3
   ) +
-  scale_color_manual(values = c("red", "#E78B4B")) +
+  scale_color_manual(values = c("red", "blue")) +
   theme_void() +
   theme(legend.title = element_blank(),
         legend.position = "top") +
