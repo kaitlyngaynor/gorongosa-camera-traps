@@ -13,7 +13,7 @@ wildcam <- read.csv("data/Gaynor_camera_locations.csv", header = T) %>%
            crs = "+proj=longlat +ellps=WGS84") %>%
   mutate(dataset_split = if_else(Site_ID %in% holdout,
                                  "Holdout",
-                                 "Training/Evaluation"))
+                                 "Training/Validation"))
 
 # Bring in park boundary shapefile
 gnp <- st_read("gis/Data from Marc/gnp_boundary_west_straight_latlong.shp") %>% 
@@ -42,11 +42,11 @@ map <- ggplot() +
            ylim = c(bbox$ymin - ypad, bbox$ymax + ypad)) +  
   scale_fill_manual(values = c(
     "Holdout" = "#9a5fab",
-    "Training/Evaluation" = "#ff8300"
+    "Training/Validation" = "#ff8300"
   )) +
   scale_shape_manual(values = c(
     "Holdout" = 24,             
-    "Training/Evaluation" = 21  
+    "Training/Validation" = 21  
   )) +
   theme_minimal() +
   theme(
